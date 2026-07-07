@@ -1,0 +1,15 @@
+# Procesamiento de Señales y Matemáticas
+numpy
+scipy
+librosa
+
+# Extracción de Audio desde Video
+moviepy
+
+# Visualización y Frontend (Semanas 2 y 3)
+matplotlib
+plotly
+streamlit
+
+# Opcional: Para desarrollo rápido en VS Code
+ipykernel
