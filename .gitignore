@@ -1,0 +1,16 @@
+# Ignorar entornos virtuales
+venv/
+env/
+
+# Ignorar archivos de Python compilados
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignorar la carpeta de datos (audios y videos de prueba)
+data/
+
+# Ignorar pesos de modelos de IA si superan los límites de GitHub (ej. 100MB)
+*.pt
+*.pth
+*.h5
