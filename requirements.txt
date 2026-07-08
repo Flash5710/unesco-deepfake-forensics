@@ -2,6 +2,7 @@
 numpy
 scipy
 librosa
+torch
 
 # Extracción de Audio desde Video
 moviepy
