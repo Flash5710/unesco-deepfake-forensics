@@ -43,6 +43,11 @@ class DeepfakeAudioDataset(Dataset):
         
         # Llamamos a la función del núcleo matemático
         espectrograma_tensor = convertir_a_tensor_pytorch(file_path)
+
+        if self.inject_noise: 
+            ruido_base = torch.randn_like(espectrograma_tensor) * 0.005
+            espectrograma_tensor = espectrograma_tensor + ruido_base
+
         label_tensor = torch.tensor(label, dtype=torch.long)
         
         return espectrograma_tensor, label_tensor
@@ -50,7 +55,7 @@ class DeepfakeAudioDataset(Dataset):
 if __name__ == "__main__":
     # Probamos el pipeline con los datos que generamos ayer lunes
     dataset = DeepfakeAudioDataset(base_dir="./data", split="train")
-    print(f" Dataset creado. Muestras encontradas: {len(dataset)}")
+    print(f"c Dataset creado. Muestras encontradas: {len(dataset)}")
     
     if len(dataset) > 0:
         tensor_audio, etiqueta = dataset[0]
@@ -59,4 +64,4 @@ if __name__ == "__main__":
         
         # Configurar el cargador por lotes (DataLoader)
         dataloader = DataLoader(dataset, batch_size=2, shuffle=True)
-        print(" ¡DataLoader de PyTorch inicializado correctamente para el entrenamiento!")
+        print(" ¡DataLoader de PyTorch configurado con aumentos de datos sutiles!")
