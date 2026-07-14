@@ -2,7 +2,6 @@ import os
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-# Intentamos importar la función desde la carpeta matemática de tu compañero
 try:
     from src.math_core.normalization import convertir_a_tensor_pytorch
 except ImportError:

@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-# Importamos tus módulos oficiales creados en los días anteriores
+
 from src.ai.custom_dataset import DeepfakeAudioDataset
 from src.ai.model import DeepfakeAudioCNN
 
@@ -54,8 +54,8 @@ def ejecutar_entrenamiento():
         running_loss += loss.item()
         print(f" -> Lote [{batch_idx + 1}/{len(dataloader_entrenar)}] | Pérdida de Entrenamiento: {loss.item():.4f}")
         
-    print(f"\n✓ Entrenamiento de la época finalizado con pérdida promedio: {running_loss / len(dataloader_entrenar):.4f}")
-    print("✓ ¡El script de entrenamiento base está 100% integrado y funcional!")
+    print(f"\n Entrenamiento de la época finalizado con pérdida promedio: {running_loss / len(dataloader_entrenar):.4f}")
+    print(" ¡El script de entrenamiento base está 100% integrado y funcional!")
 
 if __name__ == "__main__":
     ejecutar_entrenamiento()

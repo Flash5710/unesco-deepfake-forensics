@@ -20,7 +20,7 @@ class DeepfakeAudioCNN(nn.Module):
         # Reducción adaptativa para soportar audios de cualquier duración
         self.adaptive_pool = nn.AdaptiveAvgPool2d((4, 4)) # Reduce a un tamaño fijo de (32, 4, 4)
         
-        # Capas de Clasificación Totalmente Conectadas (Dense Layers)
+        # Capas de Clasificación Totalmente Conectadas 
         self.fc1 = nn.Linear(32 * 4 * 4, 64)
         self.dropout = nn.Dropout(0.3)
         self.fc2 = nn.Linear(64, 2) # 2 Clases: 0 = Real, 1 = Fake
@@ -43,7 +43,7 @@ class DeepfakeAudioCNN(nn.Module):
 
 if __name__ == "__main__":
     modelo = DeepfakeAudioCNN()
-    # Tensor simulado: [Lote de 2 audios, 1 canal, 128 filas de Mel, 44 columnas de tiempo]
+    # Tensor simulado: 
     tensor_simulado = torch.randn(2, 1, 128, 44)
     salida = modelo(tensor_simulado)
     
