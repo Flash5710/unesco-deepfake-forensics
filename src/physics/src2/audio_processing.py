@@ -66,7 +66,7 @@ def aplicar_filtro_paso_alto(y, sr, cutoff_freq=4000.0, order=5):
     las frecuencias superiores a 'cutoff_freq' (por defecto 4kHz).
     Ayuda a exponer artefactos y ruido espectral de los vocoders de IA.
     """
-    print(f"🎛️ Aplicando filtro paso-alto Butterworth (Corte: {cutoff_freq} Hz, Orden: {order})...")
+    print(f"🎛️  Aplicando filtro paso-alto Butterworth (Corte: {cutoff_freq} Hz, Orden: {order})...")
     
     # 1. Calcular la frecuencia de Nyquist (Límite físico del sistema analizado)
     nyquist = 0.5 * sr
