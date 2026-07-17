@@ -29,5 +29,40 @@ if archivo_video is not None:
     st.markdown("---")
     st.markdown("### 🔬 Resultados del Análisis Forense")
     
-    # [ESPACIO RESERVADO PARA LA INTEGRACIÓN DE LA SEMANA 3]
-    st.info("⏳ Conectando con el pipeline de ingeniería de señales...")
+    # --- MAQUETACIÓN ---
+    # Dividimos la pantalla en 2 columnas (la proporción [2, 1] hace que la izquierda sea el doble de ancha)
+    col1, col2 = st.columns([2, 1])
+    
+    # Contenedor del Físico (Mapa de calor)
+    with col1:
+        st.markdown("#### 🗺️ Mapa de Calor Espectral")
+        # Aquí incrustaremos: st.plotly_chart(generar_mapa_calor_interactivo(...))
+        st.info("El mapa interactivo de frecuencias se renderizará en este espacio.")
+        
+    # Contenedores del Matemático y la IA (Métricas numéricas)
+    with col2:
+        st.markdown("#### 📊 Métricas de Predicción")
+        # st.metric es un widget nativo para mostrar números grandes e impactantes
+        
+        # 1. Porcentaje de la Red Neuronal (IA)
+        st.metric(
+            label="🤖 Probabilidad de Deepfake (IA)", 
+            value="-- %", 
+            delta="Esperando predicción..."
+        )
+        
+        # 2. Tu métrica matemática de fase
+        st.metric(
+            label="📐 Inestabilidad de Fase", 
+            value="--", 
+            delta="Esperando análisis...",
+            delta_color="off"
+        )
+        
+        # 3. La anomalía de energía del Físico
+        st.metric(
+            label="⚡ Energía en Altas Frecuencias", 
+            value="-- %", 
+            delta="Esperando filtro...",
+            delta_color="off"
+        )
