@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import os
 import numpy as np
 import librosa
@@ -315,6 +317,37 @@ def generar_mapa_calor_interactivo(mel_db, sr, hop_length=256):
     except ImportError:
         print("⚠️ Advertencia: Plotly no está instalado en este entorno. Se omite el mapa interactivo.")
         return None
+def generar_espectrograma_forense_web(mel_db, sr, hop_length=256):
+    """
+    [SEMANA 2 - JUEVES (OPTIMIZADO)]
+    Genera un espectrograma de diagnóstico y devuelve el objeto Figure de Matplotlib.
+    Diseñado específicamente para ser embebido en Streamlit usando st.pyplot(fig).
+    """
+    print("📊 Generando objeto de espectrograma forense optimizado para la web...")
+    
+    # Crear la figura de forma explícita orientada a objetos (evita conflictos de hilos)
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    
+    # Graficar con el mapa de calor 'magma'
+    img = librosa.display.specshow(
+        mel_db, 
+        sr=sr, 
+        hop_length=hop_length, 
+        x_axis='time', 
+        y_axis='mel', 
+        cmap='magma',
+        ax=ax
+    )
+    
+    # Añadir elementos educativos interactivos en la UI
+    fig.colorbar(img, ax=ax, format='%+2.0f dB')
+    ax.set_title("Análisis Espectral de Voz (Mapa Forense de Calor)", fontsize=12, fontweight='bold', pad=15)
+    ax.set_xlabel("Tiempo (segundos)", fontsize=10)
+    ax.set_ylabel("Frecuencia Psicoacústica (Escala Mel)", fontsize=10)
+    
+    fig.tight_layout()
+    
+    return fig
 # Bloque de prueba local
 if __name__ == "__main__":
     print("\n--- 🔬 PIPELINE REAL DE INGENIERÍA DE SEÑALES (SEMANAS 1 & 2) ---")
