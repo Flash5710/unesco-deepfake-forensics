@@ -1,68 +1,74 @@
 import streamlit as st
+import os
 
-# 1. Configuración de la página (Layout)
-st.set_page_config(
-    page_title="Detector Forense de Deepfakes | UNESCO",
-    page_icon="🔎",
-    layout="wide"
-)
+# --- IMPORTACIONES DEL PIPELINE ---
+# from src.physics.audio_processing import extraer_audio_de_video, calcular_stft_y_mel, generar_espectrograma_forense_web
+# from src.math_core.normalization import cargar_y_normalizar_audio
+# from src.math_core.metrics import calcular_regularidad_fase
+
+# 1. Configuración de la página
+st.set_page_config(page_title="Detector Forense de Deepfakes | UNESCO", page_icon="🔎", layout="wide")
 
 # 2. Títulos y Encabezados
 st.title("🔎 Detector Forense de Audio 'Deepfake'")
 st.markdown("### Plataforma de análisis espectral y métricas de fase - UNESCO Youth Hackathon 2026")
 st.markdown("---") 
 
-# 3. Widget de Carga de Archivos (Drag-and-Drop) - Tarea del Martes
+# 3. Widget de Carga de Archivos
 st.markdown("### 📥 Ingesta de Datos")
-archivo_video = st.file_uploader(
-    "Arrastra y suelta el video sospechoso aquí para iniciar el análisis forense", 
-    type=["mp4", "avi", "mov"]
-)
+archivo_video = st.file_uploader("Arrastra y suelta el video sospechoso aquí", type=["mp4", "avi", "mov"])
 
-# 4. Lógica de Interfaz (¿Qué pasa cuando el usuario suelta un video?)
+# 4. Lógica de Interfaz
 if archivo_video is not None:
     st.success("✅ Video cargado exitosamente en la memoria del sistema.")
-    
-    # Reproductor visual para que el usuario confirme qué video subió
     st.video(archivo_video)
     
     st.markdown("---")
     st.markdown("### 🔬 Resultados del Análisis Forense")
     
-    # --- MAQUETACIÓN ---
-    # Dividimos la pantalla en 2 columnas (la proporción [2, 1] hace que la izquierda sea el doble de ancha)
+    # ==========================================
+    # PIPELINE BACKEND
+    # ==========================================
+    # Mostrará un ícono de carga mientras los cálculos pesados se realizan
+    with st.spinner("⏳ Analizando espectro acústico y extrayendo métricas de fase..."):
+        
+        # 1. Guardar el archivo flotante a un archivo temporal real
+        ruta_temp_video = "temp_video.mp4"
+        with open(ruta_temp_video, "wb") as f:
+            f.write(archivo_video.getbuffer())
+            
+        # 2. CONEXIÓN DE FUNCIONES (El cableado real)
+        # Aquí es donde viajará el audio a través de nuestras funciones matemáticas.
+        # ruta_audio = extraer_audio_de_video(ruta_temp_video, "temp_audio.wav")
+        # y, sr = cargar_y_normalizar_audio(ruta_audio)
+        # mel_db, mfccs = calcular_stft_y_mel(y, sr)
+        
+        # 3. Cálculo de Resultados Finales
+        # inestabilidad_fase = calcular_regularidad_fase(y)
+        # fig_espectrograma = generar_espectrograma_forense_web(mel_db, sr)
+        
+        # [SIMULACIÓN TEMPORAL PARA LA UI DE HOY]
+        inestabilidad_fase = 0.0452
+        porcentaje_ia = 87.5
+        
+    # ==========================================
+    # RENDERIZADO EN PANTALLA
+    # ==========================================
     col1, col2 = st.columns([2, 1])
     
     # Contenedor del Físico (Mapa de calor)
     with col1:
         st.markdown("#### 🗺️ Mapa de Calor Espectral")
-        # Aquí incrustaremos: st.plotly_chart(generar_mapa_calor_interactivo(...))
-        st.info("El mapa interactivo de frecuencias se renderizará en este espacio.")
+        st.info("Aquí se renderizará instantáneamente el gráfico gracias a la nueva función del Físico en memoria RAM.")
+        # st.pyplot(fig_espectrograma) # <- Esta es la función mágica que conectaremos
         
     # Contenedores del Matemático y la IA (Métricas numéricas)
     with col2:
         st.markdown("#### 📊 Métricas de Predicción")
-        # st.metric es un widget nativo para mostrar números grandes e impactantes
+        st.metric(label="🤖 Probabilidad de Deepfake (IA)", value=f"{porcentaje_ia}%", delta="Alta probabilidad de fraude", delta_color="inverse")
+        st.metric(label="📐 Inestabilidad de Fase", value=f"{inestabilidad_fase:.4f}", delta="Ruptura de fase detectada", delta_color="inverse")
+        st.metric(label="⚡ Energía en Altas Frecuencias", value="-- %", delta="Esperando filtro...", delta_color="off")
         
-        # 1. Porcentaje de la Red Neuronal (IA)
-        st.metric(
-            label="🤖 Probabilidad de Deepfake (IA)", 
-            value="-- %", 
-            delta="Esperando predicción..."
-        )
-        
-        # 2. Tu métrica matemática de fase
-        st.metric(
-            label="📐 Inestabilidad de Fase", 
-            value="--", 
-            delta="Esperando análisis...",
-            delta_color="off"
-        )
-        
-        # 3. La anomalía de energía del Físico
-        st.metric(
-            label="⚡ Energía en Altas Frecuencias", 
-            value="-- %", 
-            delta="Esperando filtro...",
-            delta_color="off"
-        )
+    # Limpieza de seguridad: Borramos el video del disco para no saturar el servidor
+    if os.path.exists(ruta_temp_video):
+        os.remove(ruta_temp_video)
