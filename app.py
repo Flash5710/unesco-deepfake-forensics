@@ -1,10 +1,31 @@
 import streamlit as st
 import os
+# import torch  # <-- Descomentaremos esto en la Semana 3
 
 # --- IMPORTACIONES DEL PIPELINE ---
 # from src.physics.audio_processing import extraer_audio_de_video, calcular_stft_y_mel, generar_espectrograma_forense_web
 # from src.math_core.normalization import cargar_y_normalizar_audio
 # from src.math_core.metrics import calcular_regularidad_fase
+
+# ==========================================
+# LÓGICA DE INFERENCIA IA
+# ==========================================
+@st.cache_resource
+def inicializar_red_neuronal():
+    """
+    Carga el modelo de IA en la memoria caché del servidor web.
+    Solo se ejecuta una vez al encender la aplicación.
+    """
+    # try:
+    #     modelo = torch.load("src/ai/modelo_cnn.pth")
+    #     modelo.eval() # Modo evaluación (apaga el entrenamiento)
+    #     return modelo
+    # except Exception as e:
+    #     st.error(f"Error cargando el modelo: {e}")
+    #     return None
+    
+    # Retornamos un simulador hasta que el Ingeniero entregue el archivo .pth
+    return "modelo_simulado_en_espera"
 
 # 1. Configuración de la página
 st.set_page_config(page_title="Detector Forense de Deepfakes | UNESCO", page_icon="🔎", layout="wide")
@@ -13,6 +34,9 @@ st.set_page_config(page_title="Detector Forense de Deepfakes | UNESCO", page_ico
 st.title("🔎 Detector Forense de Audio 'Deepfake'")
 st.markdown("### Plataforma de análisis espectral y métricas de fase - UNESCO Youth Hackathon 2026")
 st.markdown("---") 
+
+# Cargar el modelo en background al iniciar la app
+modelo_ia = inicializar_red_neuronal()
 
 # 3. Widget de Carga de Archivos
 st.markdown("### 📥 Ingesta de Datos")
