@@ -3,6 +3,7 @@ numpy
 scipy
 librosa
 torch
+time
 
 # Extracción de Audio desde Video
 moviepy
