@@ -9,6 +9,7 @@ import matplotlib
 matplotlib.use('Agg')  # Evita que se abran ventanas flotantes de la GUI en servidores/Streamlit
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+import matplotlib.ticker as ticker
 
 # ==============================================================================
 # CONSTANTES GLOBALES DE PROCESAMIENTO DE AUDIO
@@ -230,8 +231,6 @@ def contrastar_espectrogramas_forenses(ruta_real, ruta_falso, target_sr=TARGET_S
     }
     print("✅ Análisis comparativo completado con éxito.")
     return reporte_contraste
-
-
 # TODO: envolver con @st.cache_data en app.py
 def generar_mapa_calor_interactivo(
     mel_db, 
@@ -245,44 +244,44 @@ def generar_mapa_calor_interactivo(
     top_n_anomalias=2
 ):
     """
-    [SEMANA 2 - MIÉRCOLES & SEMANA 3 - MARTES]
+    [SEMANA 2 - MIÉRCOLES & SEMANA 3 - JUEVES]
     Genera un Heatmap interactivo en Plotly con detección y resaltado de zonas sospechosas.
-    Reutiliza la 'stft_compleja' si es provista para evitar recalcularla en runtime.
-    
-    Retorna:
-    - fig: Objeto Figure de Plotly
-    - warning_msg: Mensaje de advertencia para la UI de Streamlit (o None si todo está OK)
+    Corrección Final de Escala (S3 - Jueves): Unificación total del eje Y en kHz 
+    tanto en ticks, hover, anotaciones y etiquetas de ejes.
     """
     warning_msg = None
     
     try:
         import plotly.graph_objects as go
-        print("📊 Diseñando mapa de calor forense con validación de fase vs. sibilantes...")
+        print("📊 Diseñando mapa de calor forense con eje Y unificado en kHz...")
         
         times = librosa.times_like(mel_db, sr=sr, hop_length=hop_length)
-        mel_frequencies = librosa.mel_frequencies(n_mels=mel_db.shape[0], fmax=sr//2)
+        # CONVERSIÓN A kHz PARA TODO EL EJE Y
+        mel_frequencies_khz = librosa.mel_frequencies(n_mels=mel_db.shape[0], fmax=sr//2) / 1000.0
         
         # 1. Figura base del Espectrograma Mel
         fig = go.Figure(data=go.Heatmap(
             z=mel_db, 
             x=times, 
-            y=mel_frequencies,
+            y=mel_frequencies_khz,
             colorscale='Inferno', 
             zmin=-80, 
             zmax=0,
             colorbar=dict(
-                title=dict(text="Potencia (dB)", font=dict(color="#FFFFFF", size=11)),
+                title=dict(text="<b>Potencia (dB)</b>", font=dict(color="#FFFFFF", size=11)),
                 tickfont=dict(color="#D0D0D0", size=9),
                 thickness=15,
                 len=0.9
             ),
+            # HOVERTEMPLATE UNIFICADO EN kHz
             hovertemplate="<b>Tiempo:</b> %{x:.2f} s<br>" +
-                          "<b>Frecuencia:</b> %{y:.0f} Hz<br>" +
-                          "<b>Potencia:</b> %{z:.1f} dB<extra></extra>"
+                          "<b>Frecuencia:</b> %{y:.2f} kHz<br>" +
+                          "<b>Intensidad:</b> %{z:.1f} dB<extra></extra>"
         ))
         
         # 2. Análisis Multidominio (Energía + Fase)
-        idx_altas_freq = np.where(mel_frequencies >= freq_corte_hz)[0]
+        freq_corte_khz = freq_corte_hz / 1000.0
+        idx_altas_freq = np.where(mel_frequencies_khz >= freq_corte_khz)[0]
         
         if len(idx_altas_freq) > 0:
             submatriz_altas = mel_db[idx_altas_freq, :]
@@ -290,24 +289,21 @@ def generar_mapa_calor_interactivo(
             
             stft_eval = stft_compleja
             
-            # Fallback a y_audio usando n_fft parametrizado y detección de desajustes
             if stft_eval is None and y_audio is not None and len(y_audio) > 0:
                 stft_eval = librosa.stft(y_audio, n_fft=n_fft, hop_length=hop_length)
                 n_frames_esperados = mel_db.shape[1]
                 if stft_eval.shape[1] != n_frames_esperados:
                     warning_msg = (
-                        f"⚠️ Desajuste de frames: La STFT calculada produce {stft_eval.shape[1]} frames, "
-                        f"mientras que mel_db tiene {n_frames_esperados}. Transmita 'stft_compleja' para mayor precisión."
+                        f"⚠️ Desajuste de frames: La STFT produce {stft_eval.shape[1]} frames, "
+                        f"mientras que mel_db tiene {n_frames_esperados}."
                     )
                     warnings.warn(warning_msg, UserWarning)
             
-            # Warning para UI/Console en modo degraded
             if stft_eval is None:
                 warning_msg = "⚠️ Modo Degradado: Operando en 'Solo Energía'. Falsos positivos por sibilantes (/s/, /f/) son posibles."
                 print(f"⚠️ LOG FORENSE: {warning_msg}")
                 mask_sospechosa = mask_energia
             else:
-                # Aislamiento de la banda >4kHz usando n_fft parametrizado
                 stft_freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
                 idx_stft_altas = np.where(stft_freqs >= freq_corte_hz)[0]
                 
@@ -320,7 +316,6 @@ def generar_mapa_calor_interactivo(
                 delta_fase_envuelta = np.angle(np.exp(1j * delta_fase))
                 varianza_fase_frame = np.var(delta_fase_envuelta, axis=0)
                 
-                # Edge Padding
                 if len(varianza_fase_frame) < mel_db.shape[1]:
                     diferencia_frames = mel_db.shape[1] - len(varianza_fase_frame)
                     varianza_fase_frame = np.pad(varianza_fase_frame, (0, diferencia_frames), mode='edge')
@@ -329,7 +324,6 @@ def generar_mapa_calor_interactivo(
                 
                 umbral_fase = np.percentile(varianza_fase_frame, 65)
                 mask_fase_inestable = varianza_fase_frame > umbral_fase
-                
                 mask_sospechosa = mask_energia & mask_fase_inestable[np.newaxis, :]
 
             if np.any(mask_sospechosa):
@@ -341,13 +335,12 @@ def generar_mapa_calor_interactivo(
                 fig.add_trace(go.Heatmap(
                     z=z_anomalias,
                     x=times,
-                    y=mel_frequencies,
+                    y=mel_frequencies_khz,
                     colorscale=[[0, 'rgba(255,50,50,0.7)'], [1, 'rgba(255,255,0,1)']],
                     showscale=False,
                     hoverinfo='skip'
                 ))
                 
-                # Top-N Anotaciones
                 indices_validos = np.argwhere(~np.isnan(z_anomalias))
                 if len(indices_validos) > 0:
                     valores_anomalias = [z_anomalias[f, t] for f, t in indices_validos]
@@ -367,47 +360,51 @@ def generar_mapa_calor_interactivo(
 
                     for k, (f_idx, t_idx) in enumerate(picos_seleccionados):
                         tiempo_pico = times[t_idx]
-                        freq_pico = mel_frequencies[f_idx]
+                        freq_pico_khz = mel_frequencies_khz[f_idx]
                         
+                        # ANOTACIÓN UNIFICADA EN kHz
                         fig.add_annotation(
                             x=tiempo_pico,
-                            y=freq_pico,
-                            text=f"⚠️ Artefacto Vocoder #{k+1}",
+                            y=freq_pico_khz,
+                            text=f"<b>⚠️ Artefacto Vocoder #{k+1}</b><br>({freq_pico_khz:.1f} kHz | {tiempo_pico:.2f} s)",
                             showarrow=True,
                             arrowhead=2,
                             arrowcolor="#FF3333",
                             arrowsize=1.2,
                             arrowwidth=2,
-                            ax=0 if k % 2 == 0 else 20,
-                            ay=-35 - (k * 15),
+                            ax=0 if k % 2 == 0 else 25,
+                            ay=-40 - (k * 15),
                             font=dict(size=10, color="#FFFFFF"),
-                            bgcolor="rgba(180, 0, 0, 0.8)",
+                            bgcolor="rgba(180, 0, 0, 0.85)",
                             bordercolor="#FF3333",
-                            borderwidth=1
+                            borderwidth=1.5
                         )
 
+        # CONFIGURACIÓN DE EJES Y TICKS EN kHz
         fig.update_layout(
             title=dict(
                 text="<b>Análisis Forense: Zonas de Alta Incoherencia de Fase y Energía</b>", 
-                font=dict(size=15, color="#FFFFFF"),
-                x=0.01, y=0.95
+                font=dict(size=14, color="#FFFFFF"),
+                x=0.01, y=0.96
             ),
             xaxis=dict(
-                title=dict(text="Tiempo (segundos)", font=dict(color="#E0E0E0", size=11)),
+                title=dict(text="<b>Tiempo (segundos)</b>", font=dict(color="#E0E0E0", size=11)),
                 tickfont=dict(color="#B0B0B0", size=9),
+                ticksuffix=" s",
                 showgrid=False,
                 zeroline=False
             ),
             yaxis=dict(
-                title=dict(text="Frecuencia (Hz - Escala Mel)", font=dict(color="#E0E0E0", size=11)),
+                title=dict(text="<b>Frecuencia (kHz - Escala Mel)</b>", font=dict(color="#E0E0E0", size=11)),
                 tickfont=dict(color="#B0B0B0", size=9),
+                ticksuffix=" kHz",
                 showgrid=False,
                 zeroline=False
             ),
             template="plotly_dark",
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=50, r=20, t=45, b=45),
+            margin=dict(l=60, r=20, t=45, b=45),
             height=400,
             autosize=True
         )
@@ -420,18 +417,16 @@ def generar_mapa_calor_interactivo(
 
 def generar_espectrograma_forense_web(mel_db, sr, hop_length=HOP_LENGTH, titulo="Análisis Espectral Forense de Voz"):
     """
-    [SEMANA 2 - JUEVES & SEMANA 3 - MARTES]
-    Genera un objeto Figure de Matplotlib con paletas perceptualmente uniformes 
-    y estéticas oscuras de alto contraste para renderizado directo en Streamlit con st.pyplot().
+    [SEMANA 2 - JUEVES & SEMANA 3 - JUEVES]
+    Genera un objeto Figure de Matplotlib con la escala del eje Y convertida formalmente
+    a kHz mediante FuncFormatter para unificar el lenguaje visual del dashboard.
     """
-    print("📊 Generando objeto Matplotlib optimizado con paleta de alto contraste...")
+    print("📊 Generando espectrograma web con eje Y unificado en kHz...")
     
-    # Aplicar un estilo oscuro consistente con la app
     with plt.style.context('dark_background'):
-        fig, ax = plt.subplots(figsize=(10, 4.2), facecolor='none') # Fondo transparente
+        fig, ax = plt.subplots(figsize=(10, 4.2), facecolor='none')
         ax.set_facecolor('none')
         
-        # 'inferno' o 'magma' garantizan legibilidad en pantallas de alta resolución
         img = librosa.display.specshow(
             mel_db, 
             sr=sr, 
@@ -442,14 +437,17 @@ def generar_espectrograma_forense_web(mel_db, sr, hop_length=HOP_LENGTH, titulo=
             ax=ax
         )
         
-        # Configuración de barra de colores y etiquetas
+        # FORMATO DE TICKS DEL EJE Y A kHz
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, pos: f'{y/1000:.1f}'))
+        
+        # BARRA DE COLOR Y ETIQUETAS DE EJES UNIFICADAS
         cbar = fig.colorbar(img, ax=ax, format='%+2.0f dB')
         cbar.ax.tick_params(labelsize=8, colors='#D0D0D0')
-        cbar.set_label("Intensidad (dB)", color='#FFFFFF', fontsize=9)
+        cbar.set_label("Potencia / Intensidad (dB)", color='#FFFFFF', fontsize=9, fontweight='bold')
         
         ax.set_title(titulo, fontsize=12, fontweight='bold', color='#FFFFFF', pad=12)
-        ax.set_xlabel("Tiempo (segundos)", fontsize=10, color='#E0E0E0')
-        ax.set_ylabel("Frecuencia (Escala Mel)", fontsize=10, color='#E0E0E0')
+        ax.set_xlabel("Tiempo (s)", fontsize=10, fontweight='bold', color='#E0E0E0')
+        ax.set_ylabel("Frecuencia (kHz - Escala Mel)", fontsize=10, fontweight='bold', color='#E0E0E0')
         ax.tick_params(colors='#B0B0B0', labelsize=8)
         
         fig.tight_layout()
