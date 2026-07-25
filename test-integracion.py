@@ -2,7 +2,7 @@ import numpy as np
 
 from src.math_core.normalization import cargar_y_normalizar_audio
 from src.math_core.metrics import calcular_regularidad_fase
-from src.physics.src2.audio_processing import aplicar_filtro_paso_alto
+from src.physics.audio_processing import aplicar_filtro_paso_alto
 
 # NOTA: Simularemos el paso del filtro del Físico para validar dimensiones
 def simulador_filtro_fisico(y):
