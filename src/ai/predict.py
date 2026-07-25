@@ -7,7 +7,6 @@ def predecir_etiqueta(espectrograma_tensor, model_path=None):
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-     Cargar el modelo
     modelo = DeepfakeAudioCNN().to(device)
     
     
