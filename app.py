@@ -3,7 +3,7 @@ import os
 import torch
 
 # --- IMPORTACIONES REALES DE TUS COMPAÑEROS ---
-from src.physics.audio_processing import extraer_audio_de_video, calcular_stft_y_mel, generar_mapa_calor_interactivo, TARGET_SR
+from src.physics.src2.audio_processing import extraer_audio_de_video, calcular_stft_y_mel, generar_mapa_calor_interactivo, TARGET_SR
 from src.math_core.normalization import cargar_y_normalizar_audio, convertir_a_tensor_pytorch
 from src.math_core.metrics import calcular_regularidad_fase
 from src.ai.model import DeepfakeAudioCNN
