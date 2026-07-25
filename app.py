@@ -2,8 +2,8 @@ import streamlit as st
 import os
 import torch
 
-# --- IMPORTACIONES REALES DE TUS COMPAÑEROS (SEMANA 3) ---
-from src.physics.src2.audio_processing import extraer_audio_de_video, calcular_stft_y_mel, generar_mapa_calor_interactivo
+# --- IMPORTACIONES REALES DE TUS COMPAÑEROS ---
+from src.physics.audio_processing import extraer_audio_de_video, calcular_stft_y_mel, generar_mapa_calor_interactivo, TARGET_SR
 from src.math_core.normalization import cargar_y_normalizar_audio, convertir_a_tensor_pytorch
 from src.math_core.metrics import calcular_regularidad_fase
 from src.ai.model import DeepfakeAudioCNN
@@ -14,72 +14,58 @@ from src.ai.model import DeepfakeAudioCNN
 @st.cache_resource
 def inicializar_red_neuronal():
     try:
-        # 1. Instanciamos la arquitectura real que creó el Ing. en IA
         modelo = DeepfakeAudioCNN()
-        
-        # 2. Cargamos los pesos entrenados
         ruta_pesos = "src/ai/modelo_cnn.pth"
         if os.path.exists(ruta_pesos):
             modelo.load_state_dict(torch.load(ruta_pesos, map_location=torch.device('cpu')))
-        else:
-            st.warning("⚠️ Arquitectura de IA cargada, pero falta el archivo 'modelo_cnn.pth'. Se usará en modo no-entrenado temporalmente.")
-            
-        modelo.eval() # Apagamos el modo de entrenamiento para que solo haga inferencia
+        modelo.eval()
         return modelo
     except Exception as e:
         st.error(f"Error cargando el modelo de IA: {e}")
         return None
 
-# 1. Configuración de la página
 st.set_page_config(page_title="Detector Forense | UNESCO", page_icon="🔎", layout="wide")
 
 st.title("🔎 Detector Forense de Audio 'Deepfake'")
 st.markdown("### Plataforma de análisis espectral y métricas de fase - UNESCO Youth Hackathon 2026")
 st.markdown("---") 
 
-# Cargar la IA en la memoria RAM del servidor
 modelo_ia = inicializar_red_neuronal()
 
-# 2. Widget de Carga
 st.markdown("### 📥 Ingesta de Datos")
 archivo_video = st.file_uploader("Arrastra y suelta el video sospechoso aquí...", type=["mp4", "avi", "mov"])
 
 if archivo_video is not None:
-    st.success("✅ Video cargado exitosamente en la memoria del sistema.")
+    st.success("✅ Video cargado exitosamente.")
     st.video(archivo_video)
     
     st.markdown("---")
     st.markdown("### 🔬 Resultados del Análisis Forense")
     
     with st.spinner("⏳ Procesando señales y ejecutando inferencia profunda..."):
-        
-        # 1. Guardar archivo temporal del video
         ruta_temp_video = "temp_video.mp4"
         with open(ruta_temp_video, "wb") as f:
             f.write(archivo_video.getbuffer())
             
         try:
-            # 2. PIPELINE DE SEÑALES REAL (El cableado final)
             ruta_audio = extraer_audio_de_video(ruta_temp_video, "temp_audio.wav")
-            y, sr = cargar_y_normalizar_audio(ruta_audio)
-            mel_db, mfccs = calcular_stft_y_mel(y, sr)
             
-            # Fórmulas Matemáticas y Gráficos
+            # ⚠️ Parche aplicado: Usamos TARGET_SR en vez de hardcodear números
+            y, sr = cargar_y_normalizar_audio(ruta_audio, target_sr=TARGET_SR)
+            
+            # ⚠️ Parche aplicado: Desempaquetamos los 3 valores (mel_db, mfccs, stft_compleja)
+            mel_db, mfccs, stft_compleja = calcular_stft_y_mel(y, sr)
+            
             inestabilidad_fase = calcular_regularidad_fase(y)
             fig_mapa_calor = generar_mapa_calor_interactivo(mel_db, sr)
             
-            # 3. LÓGICA DE INFERENCIA DE IA
             tensor_entrada = convertir_a_tensor_pytorch(ruta_audio)
             
             if modelo_ia is not None:
                 with torch.no_grad():
-                    # Añadimos la dimensión de lote (Batch) que espera PyTorch: [1, Canales, Alto, Ancho]
                     if tensor_entrada.dim() == 3:
                         tensor_entrada = tensor_entrada.unsqueeze(0)
-                    
                     salida = modelo_ia(tensor_entrada)
-                    
-                    # Aplicamos Softmax para obtener el % exacto de probabilidad de la clase 1 (Deepfake)
                     probabilidades = torch.nn.functional.softmax(salida, dim=1)
                     porcentaje_ia = probabilidades[0][1].item() * 100 
             else:
@@ -92,13 +78,12 @@ if archivo_video is not None:
             fig_mapa_calor = None
 
     # ==========================================
-    # RENDERIZADO EN PANTALLA
+    # INTEGRACIÓN COMPLETA DE UI
     # ==========================================
     col1, col2 = st.columns([2, 1])
     
     with col1:
         st.markdown("#### 🗺️ Mapa de Calor Espectral")
-        # Aquí incrustamos mágicamente la figura interactiva de Plotly que hizo el Físico
         if fig_mapa_calor:
             st.plotly_chart(fig_mapa_calor, use_container_width=True)
         else:
@@ -106,14 +91,41 @@ if archivo_video is not None:
         
     with col2:
         st.markdown("#### 📊 Métricas de Predicción")
-        # Lógica de colores automáticos para advertir al usuario
-        color_delta = "inverse" if porcentaje_ia > 50 else "normal"
         
-        st.metric(label="🤖 Probabilidad de Deepfake (IA)", value=f"{porcentaje_ia:.2f}%", delta="Alta probabilidad de fraude" if porcentaje_ia > 50 else "Audio Auténtico", delta_color=color_delta)
-        st.metric(label="📐 Inestabilidad de Fase", value=f"{inestabilidad_fase:.4f}", delta="Ruptura de fase detectada" if inestabilidad_fase > 0.03 else "Fase estable", delta_color=color_delta)
-        st.metric(label="⚡ Energía en Altas Frecuencias", value="Procesado", delta="A la espera de estadística", delta_color="off")
+        # 1. Lógica dinámica de niveles de alerta para la IA
+        if porcentaje_ia > 75:
+            estado_alerta = "🚨 ALTO RIESGO: Fraude Sintético"
+            color_delta = "inverse"
+        elif porcentaje_ia > 40:
+            estado_alerta = "⚠️ ADVERTENCIA: Audio Modificado"
+            color_delta = "off"
+        else:
+            estado_alerta = "✅ SEGURO: Audio Auténtico"
+            color_delta = "normal"
+            
+        st.metric(label="🤖 Probabilidad de Deepfake (IA)", 
+                  value=f"{porcentaje_ia:.1f}%", 
+                  delta=estado_alerta, 
+                  delta_color=color_delta)
+                  
+        # 2. Barra de progreso visual para fácil lectura
+        st.progress(int(porcentaje_ia) / 100)
         
-    # Limpieza absoluta de la memoria local para proteger el servidor
+        # 3. Contenedor expansible con metadatos técnicos (Requisito de UI)
+        with st.expander("Ver desglose técnico de inferencia"):
+            st.write(f"**Arquitectura:** DeepfakeAudioCNN")
+            st.write(f"**Tasa de Muestreo:** {TARGET_SR} Hz")
+            st.write(f"**Tensores Procesados:** MFCCs + STFT Compleja")
+
+        st.divider()
+
+        # Métricas matemáticas
+        st.metric(label="📐 Inestabilidad de Fase", 
+                  value=f"{inestabilidad_fase:.4f}", 
+                  delta="Ruptura de fase detectada" if inestabilidad_fase > 0.03 else "Fase estable", 
+                  delta_color="inverse" if inestabilidad_fase > 0.03 else "normal")
+        
+    # Limpieza
     if os.path.exists(ruta_temp_video):
         os.remove(ruta_temp_video)
     if 'ruta_audio' in locals() and os.path.exists(ruta_audio):
