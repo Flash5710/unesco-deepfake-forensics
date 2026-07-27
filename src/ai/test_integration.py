@@ -14,13 +14,13 @@ class TestIAIntegration(unittest.TestCase):
 
     def test_modelo_forward(self):
         """Valida que la CNN procese un lote sin errores de forma."""
-        tensor_entrada = torch.randn(2, 1, 128, 44)
+        tensor_entrada = torch.randn(2, 1, 128, 300)
         salida = self.modelo(tensor_entrada)
         self.assertEqual(salida.shape, (2, 2), "La salida del modelo debe tener la forma [batch_size, 2]")
 
     def test_pipeline_respuesta_correcta(self):
         """Valida que el pipeline devuelva un diagnóstico estructurado válido."""
-        tensor_entrada = torch.randn(1, 128, 44)
+        tensor_entrada = torch.randn(1, 128, 300)
         resultado = self.pipeline.procesar_audio_tensor(tensor_entrada)
         
         self.assertEqual(resultado["estado"], "EXITO")
