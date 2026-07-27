@@ -26,6 +26,7 @@ TARGET_SR = 16000
 # ==========================================
 # 🧠 LÓGICA DE INICIALIZACIÓN DE LA IA
 # ==========================================
+@st.cache_resource
 def inicializar_red_neuronal():
     try:
         modelo = DeepfakeAudioCNN()

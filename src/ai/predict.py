@@ -43,7 +43,7 @@ def predecir_etiqueta(audio_input, model_path="src/ai/best_model.pth"):
     # --- Pipeline modular para entradas del mundo real (ruta de audio) ---
     if isinstance(audio_input, str):
         # 1. Extraer señal (y) y frecuencia (sr) forzando 48000 Hz
-        y, sr = cargar_y_normalizar_audio(audio_input, target_sr=48000)
+        y, sr = cargar_y_normalizar_audio(audio_input, target_sr=16000)
         
         mel_db, _, _ = calcular_stft_y_mel(y, sr)
         mel_db = normalizar_espectrograma(mel_db)

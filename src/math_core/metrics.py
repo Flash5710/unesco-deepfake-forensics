@@ -1,7 +1,7 @@
 import numpy as np
 import librosa
 
-def calcular_regularidad_fase(y, n_fft=1024, hop_length=256):
+def calcular_regularidad_fase(y, n_fft=2048, hop_length=512):
     """
     [SEMANA 1 - MIÉRCOLES]
     Calcula la métrica de regularidad de fase para analizar la continuidad 
