@@ -14,31 +14,44 @@ import matplotlib.ticker as ticker
 # ==============================================================================
 # CONSTANTES GLOBALES DE PROCESAMIENTO DE AUDIO
 # ==============================================================================
-N_FFT = 1024
-HOP_LENGTH = 256
+N_FFT = 2048
+HOP_LENGTH = 512
 TARGET_SR = 16000
 N_MELS = 128
 N_MFCC = 13
 CUTOFF_FREQ_HZ = 4000.0
+MAX_FRAMES= 300
 
+import subprocess
+import imageio_ffmpeg
 
 def extraer_audio_de_video(ruta_video, ruta_salida_audio="data/samples/temp_audio.wav"):
     """
-    Separa el flujo de audio de un archivo de video y lo guarda en formato WAV.
-    Compatible con MoviePy v2.0+
+    Extrae audio usando el binario de FFmpeg empaquetado por imageio-ffmpeg,
+    evitando cualquier dependencia del PATH del sistema operativo.
     """
-    import moviepy as mp
     print(f"📦 Extrayendo audio de: {ruta_video}...")
-    
     os.makedirs(os.path.dirname(ruta_salida_audio), exist_ok=True)
-    
-    video = mp.VideoFileClip(ruta_video)
-    audio = video.audio
-    audio.write_audiofile(ruta_salida_audio, fps=TARGET_SR, nbytes=2, codec='pcm_s16le', logger=None)
-    
-    audio.close()
-    video.close()   
-    
+
+    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+
+    comando = [
+        ffmpeg_exe, "-y",
+        "-i", ruta_video,
+        "-vn",
+        "-c:a", "pcm_s16le",
+        "-ar", "16000",
+        "-ac", "1",
+        ruta_salida_audio
+    ]
+    resultado = subprocess.run(comando, capture_output=True, text=True)
+
+    if resultado.returncode != 0:
+        raise RuntimeError(f"🚨 FFmpeg falló al extraer audio: {resultado.stderr}")
+
+    if not os.path.exists(ruta_salida_audio):
+        raise ValueError("El archivo de video no contiene pista de audio extraíble.")
+
     print(f"✅ Audio extraído exitosamente en: {ruta_salida_audio}")
     return ruta_salida_audio
 
@@ -82,7 +95,7 @@ def calcular_stft_y_mel(y, sr, n_fft=N_FFT, hop_length=HOP_LENGTH, stft_compleja
         n_mels=N_MELS
     )
     
-    mel_db = librosa.power_to_db(espectrograma_mel, ref=np.max)
+    mel_db = librosa.power_to_db(espectrograma_mel, ref=1.0)
     mfccs = librosa.feature.mfcc(S=mel_db, sr=sr, n_mfcc=N_MFCC)
     
     return mel_db, mfccs, stft_compleja
@@ -127,21 +140,115 @@ def calcular_regularidad_fase(y=None, n_fft=N_FFT, hop_length=HOP_LENGTH, stft_c
     return float(np.mean(varianza_fase))
 
 
-def convertir_a_tensor_pytorch(matriz, agregar_canal=True):
+def pre_emphasis(y, alpha=0.97):
+    """Filtro pre-énfasis: amplifica frecuencias altas donde residen artefactos de deepfake."""
+    return np.append(y[0], y[1:] - alpha * y[:-1])
+
+
+def normalizar_espectrograma(matriz):
+    """Z-score normalization por muestra: media=0, std=1."""
+    media = np.mean(matriz)
+    std = np.std(matriz)
+    if std > 1e-8:
+        return (matriz - media) / std
+    return matriz - media
+
+
+def convertir_a_tensor_pytorch(matriz, agregar_canal=True, normalizar=False):
     """
-    Convierte opcionalmente una matriz de características en un torch.Tensor listo para la CNN.
+    Convierte matriz de espectrograma en torch.Tensor listo para la CNN.
+    - Padding con -80 dB (silencio) en vez de 0 dB.
+    - Z-score normalization opcional para estabilizar distribución de entrada.
     """
     try:
         import torch
-        print("🤖 Convirtiendo características a tensor de PyTorch...")
+        print(" Convirtiendo características a tensor de PyTorch...")
+
+        frames_actuales = matriz.shape[1]
+
+        # Padding con SILENCIO (-80 dB), no con 0 dB que es sonido fuerte
+        if frames_actuales < MAX_FRAMES:
+            frames_faltantes = MAX_FRAMES - frames_actuales
+            matriz = np.pad(
+                matriz,
+                ((0, 0), (0, frames_faltantes)),
+                mode='constant',
+                constant_values=-80.0
+            )
+        elif frames_actuales > MAX_FRAMES:
+            matriz = matriz[:, :MAX_FRAMES]
+
+        if normalizar:
+            matriz = normalizar_espectrograma(matriz)
+
         tensor = torch.from_numpy(matriz).float()
         if agregar_canal:
-            tensor = tensor.unsqueeze(0) 
+            tensor = tensor.unsqueeze(0)
         return tensor
     except ImportError:
-        print("⚠️ PyTorch no detectado localmente. Retornando matriz NumPy original.")
+        print(" PyTorch no detectado localmente. Retornando matriz NumPy original.")
         return matriz
+def predecir_audio_completo(mel_db, modelo, device=None, max_frames=MAX_FRAMES, stride=150, 
+                              max_padding_ratio=0.4):
+    """
+    Analiza el audio COMPLETO mediante ventanas deslizantes. Cada ventana se
+    normaliza INDIVIDUALMENTE usando solo su contenido real (antes del padding),
+    replicando cómo custom_dataset.py normaliza cada muestra de ~9.6s en
+    entrenamiento. Evita tanto el sesgo de normalizar sobre un clip largo completo
+    como la contaminación de estadísticas por el valor de padding (-80 dB).
+    """
+    import torch
+    from src.ai.custom_dataset import normalizar_espectrograma
 
+    if device is None:
+        device = torch.device("cpu")
+
+    total_frames = mel_db.shape[1]
+    ventanas_raw = []
+    tiempos_inicio = []
+
+    if total_frames <= max_frames:
+        ventanas_raw = [mel_db]
+        tiempos_inicio = [0.0]
+    else:
+        inicio = 0
+        while inicio < total_frames:
+            fin = min(inicio + max_frames, total_frames)
+            frames_reales = fin - inicio
+            proporcion_relleno = 1.0 - (frames_reales / max_frames)
+
+            if proporcion_relleno <= max_padding_ratio:
+                ventanas_raw.append(mel_db[:, inicio:fin])
+                tiempos_inicio.append(inicio * HOP_LENGTH / TARGET_SR)
+
+            if fin == total_frames:
+                break
+            inicio += stride
+
+        if not ventanas_raw:
+            ini = max(0, total_frames - max_frames)
+            ventanas_raw = [mel_db[:, ini:total_frames]]
+            tiempos_inicio = [ini * HOP_LENGTH / TARGET_SR]
+
+    predicciones = []
+    modelo.eval()
+    with torch.no_grad():
+        for ventana in ventanas_raw:
+            # Normaliza SOLO esta ventana, con sus propias estadísticas,
+            # ANTES de rellenar con padding (-80 dB)
+            ventana_norm = normalizar_espectrograma(ventana)
+            tensor = convertir_a_tensor_pytorch(ventana_norm, normalizar=False)
+            if tensor.dim() == 3:
+                tensor = tensor.unsqueeze(0)
+            tensor = tensor.to(device)
+            salida = modelo(tensor)
+            prob_fake = torch.nn.functional.softmax(salida, dim=1)[0][1].item()
+            predicciones.append(prob_fake * 100)
+
+    top_k = sorted(predicciones, reverse=True)[:2]
+    prob_final = sum(top_k) / len(top_k)
+
+    return prob_final, predicciones, tiempos_inicio
 
 def guardar_espectrograma_limpio(mel_db, ruta_salida):
     """
