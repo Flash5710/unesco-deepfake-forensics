@@ -38,7 +38,7 @@ if __name__ == "__main__":
     pipeline = AIPipeline()
     
     # Simulación de un espectrograma de Mel procesado 
-    tensor_prueba = torch.randn(1, 128, 44)
+    tensor_prueba = torch.randn(1, 128, 300)
     respuesta = pipeline.procesar_audio_tensor(tensor_prueba)
     
     print("\n Respuesta estructurada del Pipeline:")
