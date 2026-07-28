@@ -1,15 +1,13 @@
 const $ = (id) => document.getElementById(id);
 
-let API_BASE = "http://localhost:8000";
-
 const tabFile = $("tab-file");
 const tabUrl = $("tab-url");
+const tabHistory = $("tab-history");
 const dropZone = $("drop-zone");
 const fileInput = $("file-input");
 const urlInput = $("url-input");
 const analyzeUrlBtn = $("analyze-url-btn");
 const captureTabBtn = $("capture-tab-btn");
-const tabHistory = $("tab-history");
 const loading = $("loading");
 const result = $("result");
 const error = $("error");
@@ -22,10 +20,78 @@ const downloadPdfBtn = $("download-pdf-btn");
 const newAnalysisBtn = $("new-analysis-btn");
 const historyList = $("history-list");
 const clearHistoryBtn = $("clear-history-btn");
+const listenResultBtn = $("listen-result-btn");
+const langEs = $("lang-es");
+const langEn = $("lang-en");
 
+let API_BASE = "http://localhost:8000";
 let lastResult = null;
+let currentData = null;
+
+function t(key) {
+  return (window.__DF_I18N?.t) ? window.__DF_I18N.t("popup", key) : key;
+}
+
+async function applyLang(lang) {
+  if (window.__DF_I18N) {
+    window.__DF_I18N.setLang(lang, true);
+  }
+
+  document.documentElement.lang = lang === "en" ? "en" : "es";
+  langEs.classList.toggle("active", lang === "es");
+  langEn.classList.toggle("active", lang === "en");
+  langEs.setAttribute("aria-checked", lang === "es");
+  langEn.setAttribute("aria-checked", lang === "en");
+
+  document.title = t("app_title");
+  $("subtitle-text").textContent = t("subtitle");
+  $("tab-btn-file").textContent = t("tab_file");
+  $("tab-btn-url").textContent = t("tab_url");
+  $("tab-btn-history").textContent = t("tab_history");
+
+  const dropText = dropZone.querySelector(".drop-text");
+  if (dropText) dropText.textContent = t("drop_text");
+  const dropHint = dropZone.querySelector(".drop-hint");
+  if (dropHint) dropHint.textContent = t("drop_hint");
+  dropZone.setAttribute("aria-label", t("drop_text"));
+
+  const urlLabel = $("url-label");
+  if (urlLabel) urlLabel.textContent = t("url_label");
+  urlInput.placeholder = t("url_placeholder");
+  urlInput.setAttribute("aria-label", t("url_label"));
+  captureTabBtn.title = t("capture_title");
+  captureTabBtn.setAttribute("aria-label", t("capture_title"));
+  analyzeUrlBtn.textContent = t("analyze_url_btn");
+  analyzeUrlBtn.setAttribute("aria-label", t("analyze_url_btn"));
+
+  const loadingText = loading.querySelector("p");
+  if (loadingText) loadingText.textContent = t("loading");
+
+  $("metric-confidence").textContent = t("confidence");
+  $("metric-instability").textContent = t("phase_instability");
+  downloadPdfBtn.textContent = t("download_pdf");
+  downloadPdfBtn.setAttribute("aria-label", t("download_pdf"));
+  newAnalysisBtn.textContent = t("new_analysis");
+  listenResultBtn.innerHTML = "🔊 " + t("listen");
+  listenResultBtn.setAttribute("aria-label", t("listen"));
+
+  retryBtn.textContent = t("retry");
+  clearHistoryBtn.textContent = t("clear_history");
+
+  if (result.classList.contains("hidden") === false && currentData) {
+    showResult(currentData);
+  }
+  if (error.classList.contains("hidden") === false) {
+    const msg = errorText.textContent;
+  }
+}
 
 (async () => {
+  if (window.__DF_I18N) {
+    await window.__DF_I18N.init();
+    applyLang(window.__DF_I18N.getLang());
+  }
+
   try {
     const resp = await chrome.runtime.sendMessage({ type: "get_api_base" });
     if (resp) API_BASE = resp;
@@ -34,10 +100,17 @@ let lastResult = null;
   if (stored.lastResult) lastResult = stored.lastResult;
 })();
 
+langEs.addEventListener("click", () => applyLang("es"));
+langEn.addEventListener("click", () => applyLang("en"));
+
 document.querySelectorAll(".tab").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".tab").forEach((b) => {
+      b.classList.remove("active");
+      b.setAttribute("aria-selected", "false");
+    });
     btn.classList.add("active");
+    btn.setAttribute("aria-selected", "true");
     document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
     const map = { file: tabFile, url: tabUrl, history: tabHistory };
     const target = map[btn.dataset.tab] || tabFile;
@@ -48,6 +121,7 @@ document.querySelectorAll(".tab").forEach((btn) => {
 });
 
 dropZone.addEventListener("click", () => fileInput.click());
+dropZone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
 
 dropZone.addEventListener("dragover", (e) => {
   e.preventDefault();
@@ -91,7 +165,7 @@ captureTabBtn.addEventListener("click", async () => {
       analyzeUrlBtn.click();
     }
   } catch (err) {
-    showError("No se pudo capturar la URL: " + err.message);
+    showError(t("error_generic") + ": " + err.message);
   }
 });
 
@@ -103,6 +177,7 @@ newAnalysisBtn.addEventListener("click", () => {
   hideAll();
   fileInput.value = "";
   urlInput.value = "";
+  currentData = null;
 });
 
 downloadPdfBtn.addEventListener("click", () => {
@@ -124,10 +199,35 @@ downloadPdfBtn.addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
+listenResultBtn.addEventListener("click", () => {
+  if (!currentData || !window.__DF_I18N) return;
+  const lang = window.__DF_I18N.getLang();
+  const isFake = currentData.veredicto === "DEEPFAKE";
+  const text = `${currentData.veredicto}. ${t("confidence")}: ${currentData.confianza.toFixed(2)}%. ${t("phase_instability")}: ${currentData.inestabilidad.toFixed(4)}.`;
+  window.__DF_I18N.speak(text, lang);
+});
+
 async function analyzeFile(file) {
   const formData = new FormData();
   formData.append("file", file);
-  await doFetch("/analyze_file", { method: "POST", body: formData });
+  // For file uploads we still use direct fetch since we can't go through background
+  hideAll();
+  loading.classList.remove("hidden");
+  error.classList.add("hidden");
+  result.classList.add("hidden");
+
+  try {
+    const lang = window.__DF_I18N?.getLang() || "es";
+    const res = await fetch(`${API_BASE}/analyze_file?lang=${lang}`, { method: "POST", body: formData });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || `Error ${res.status}`);
+    }
+    const data = await res.json();
+    showResult(data);
+  } catch (err) {
+    showError(err.message);
+  }
 }
 
 async function analyzeUrl(url) {
@@ -142,27 +242,8 @@ async function analyzeUrl(url) {
       url: url,
     });
     if (!data || data.error) {
-      throw new Error(data?.error || "Error al analizar la URL");
+      throw new Error(data?.error || t("error_generic"));
     }
-    showResult(data);
-  } catch (err) {
-    showError(err.message);
-  }
-}
-
-async function doFetch(endpoint, options) {
-  hideAll();
-  loading.classList.remove("hidden");
-  error.classList.add("hidden");
-  result.classList.add("hidden");
-
-  try {
-    const res = await fetch(`${API_BASE}${endpoint}`, options);
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || `Error ${res.status}`);
-    }
-    const data = await res.json();
     showResult(data);
   } catch (err) {
     showError(err.message);
@@ -172,6 +253,7 @@ async function doFetch(endpoint, options) {
 function showResult(data) {
   loading.classList.add("hidden");
   lastResult = data;
+  currentData = data;
 
   const isDeepfake = data.veredicto === "DEEPFAKE";
   veredictoBadge.textContent = data.veredicto;
@@ -203,14 +285,14 @@ clearHistoryBtn.addEventListener("click", async () => {
 async function loadHistory() {
   const history = await chrome.runtime.sendMessage({ type: "get_history" });
   if (!history || history.length === 0) {
-    historyList.innerHTML = `<div class="history-empty">Sin análisis anteriores</div>`;
+    historyList.innerHTML = `<div class="history-empty">${t("no_history")}</div>`;
     return;
   }
   historyList.innerHTML = history
     .map(
       (h) => `
-    <div class="history-item" data-url="${h.url}">
-      <div class="history-badge ${h.veredicto === "DEEPFAKE" ? "fake" : "real"}"></div>
+    <div class="history-item" data-url="${h.url}" role="listitem" tabindex="0">
+      <div class="history-badge ${h.veredicto === "DEEPFAKE" ? "fake" : "real"}" aria-hidden="true"></div>
       <div class="history-info">
         <div class="history-url">${h.url}</div>
         <div class="history-meta">${h.veredicto} · ${h.confianza.toFixed(2)}% · ${new Date(h.timestamp).toLocaleString()}</div>
@@ -222,9 +304,15 @@ async function loadHistory() {
 
   historyList.querySelectorAll(".history-item").forEach((item) => {
     item.addEventListener("click", () => {
-      const urlInput = $("url-input");
       urlInput.value = item.dataset.url;
       document.querySelector('[data-tab="url"]')?.click();
+    });
+    item.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        urlInput.value = item.dataset.url;
+        document.querySelector('[data-tab="url"]')?.click();
+      }
     });
   });
 }
