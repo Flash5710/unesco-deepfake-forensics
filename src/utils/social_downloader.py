@@ -8,6 +8,8 @@ _DOMINIOS_VALIDOS = frozenset({
     "tiktok.com", "www.tiktok.com",
     "x.com", "www.x.com",
     "twitter.com", "www.twitter.com",
+    "youtube.com", "www.youtube.com", "m.youtube.com",
+    "youtu.be", "youtube-nocookie.com",
 })
 
 def _dominio_es_valido(url: str) -> bool:
