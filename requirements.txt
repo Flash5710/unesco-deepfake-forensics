@@ -26,6 +26,12 @@ kagglehub
 # === Augmentación acústica (requiere ffmpeg en PATH o lameenc) ===
 audiomentations
 
+# === API REST (FastAPI) ===
+fastapi
+uvicorn
+python-multipart
+pydantic
+
 # === Testing ===
 pytest
 
