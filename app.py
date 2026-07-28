@@ -1,6 +1,7 @@
 import sys
 import os
 import uuid
+from datetime import datetime
 
 # 1. FUERZA A PYTHON A RECONOCER LA CARPETA RAÍZ Y EL PAQUETE /src
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -18,6 +19,9 @@ from src.math_core.metrics import calcular_regularidad_fase
 from src.ai.model import DeepfakeAudioCNN
 from src.ai.custom_dataset import DeepfakeAudioDataset
 from src.utils.social_downloader import descargar_video_de_red_social
+from src.utils.pdf_generator import generar_reporte_forense
+from src.ai.gradcam import generar_mapa_gradcam, _figura_superposicion
+from src.physics.audio_processing import normalizar_espectrograma, HOP_LENGTH, MAX_FRAMES
 import numpy as np
 
 # Constante de frecuencia de muestreo unificada (Estándar 16kHz optimizado)
@@ -30,7 +34,7 @@ TARGET_SR = 16000
 def inicializar_red_neuronal():
     try:
         modelo = DeepfakeAudioCNN()
-        ruta_pesos = "src/ai/best_model.pth" 
+        ruta_pesos = "src/ai/best_model_v2_augmented.pth" 
         
         if os.path.exists(ruta_pesos):
             modelo.load_state_dict(torch.load(ruta_pesos, map_location=torch.device('cpu')))
@@ -74,6 +78,8 @@ def _procesar_y_mostrar(ruta_video_o_audio, ruta_audio, nombre_original, es_audi
     st.markdown("---")
     st.markdown("### 🔬 Resultados del Análisis Forense")
 
+    st.session_state.ultimo_nombre = nombre_original
+
     with st.spinner("⏳ Procesando señales y ejecutando inferencia profunda..."):
         os.makedirs("data", exist_ok=True)
 
@@ -91,6 +97,8 @@ def _procesar_y_mostrar(ruta_video_o_audio, ruta_audio, nombre_original, es_audi
                 raise Exception("El sistema no pudo extraer la pista de audio. Verifica que el video no sea mudo.")
 
             y, sr = cargar_y_normalizar_audio(ruta_audio, target_sr=TARGET_SR)
+            st.session_state.ultimo_audio_y = y
+            st.session_state.ultimo_audio_sr = sr
             mel_db, mfccs, stft_compleja = calcular_stft_y_mel(y, sr)
 
             inestabilidad_fase = calcular_regularidad_fase(y)
@@ -103,6 +111,7 @@ def _procesar_y_mostrar(ruta_video_o_audio, ruta_audio, nombre_original, es_audi
                 porcentaje_ia, predicciones_por_ventana, tiempos_ventanas = predecir_audio_completo(
                     mel_db, modelo_ia, device=torch.device("cpu")
                 )
+                st.session_state.ultimo_porcentaje_ia = porcentaje_ia
 
         except Exception as e:
             st.error(f"Error crítico en el procesamiento: {e}")
@@ -157,6 +166,19 @@ def _procesar_y_mostrar(ruta_video_o_audio, ruta_audio, nombre_original, es_audi
                 for t_ini, prob in zip(tiempos_ventanas, predicciones_por_ventana):
                     st.write(f"  • Segundo {t_ini:.1f}s: {prob:.1f}% Fake")
 
+        st.download_button(
+            label="📄 Descargar Reporte Forense (PDF)",
+            data=generar_reporte_forense(
+                nombre_original, y, sr, porcentaje_ia,
+                inestabilidad_fase=inestabilidad_fase,
+                tiempos_ventanas=tiempos_ventanas,
+                predicciones_por_ventana=predicciones_por_ventana,
+            ).read(),
+            file_name=f"reporte_forense_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+        )
+
         st.divider()
 
         st.metric(
@@ -165,6 +187,26 @@ def _procesar_y_mostrar(ruta_video_o_audio, ruta_audio, nombre_original, es_audi
             delta="Ruptura de fase detectada" if inestabilidad_fase > 3.5 else "Fase estable",
             delta_color="inverse" if inestabilidad_fase > 3.5 else "normal"
         )
+
+        if modelo_ia is not None and len(predicciones_por_ventana) > 0:
+            st.divider()
+            st.markdown("#### 🔬 Análisis de Explicabilidad (Grad-CAM)")
+
+            idx_max = int(np.argmax(predicciones_por_ventana))
+            t_ventana = tiempos_ventanas[idx_max]
+            inicio_frame = int(t_ventana * TARGET_SR / HOP_LENGTH)
+            ventana_mel = mel_db[:, inicio_frame:inicio_frame + MAX_FRAMES]
+
+            ventana_norm = normalizar_espectrograma(ventana_mel)
+            tensor_entrada = convertir_a_tensor_pytorch(ventana_norm, normalizar=False)
+
+            target_class = 1 if porcentaje_ia > 50 else 0
+            cam = generar_mapa_gradcam(modelo_ia, tensor_entrada, target_class=target_class)
+
+            buf = _figura_superposicion(ventana_mel, cam, sr=TARGET_SR, hop_length=HOP_LENGTH)
+            st.image(buf, use_container_width=True)
+            st.caption(f"Ventana más relevante: segundo {t_ventana:.1f}s — "
+                       f"probabilidad deepfake: {predicciones_por_ventana[idx_max]:.1f}%")
 
 
 # ==========================================
