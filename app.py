@@ -3,13 +3,11 @@ import os
 import uuid
 from datetime import datetime
 
-# 1. FUERZA A PYTHON A RECONOCER LA CARPETA RAÍZ Y EL PAQUETE /src
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import streamlit as st
 import torch
 
-# --- IMPORTACIONES MODULARES DE TU EQUIPO ---
 from src.physics.audio_processing import (
     extraer_audio_de_video, calcular_stft_y_mel, generar_mapa_calor_interactivo,
     cargar_y_normalizar_audio, convertir_a_tensor_pytorch,
@@ -22,65 +20,79 @@ from src.utils.social_downloader import descargar_video_de_red_social
 from src.utils.pdf_generator import generar_reporte_forense
 from src.ai.gradcam import generar_mapa_gradcam, _figura_superposicion
 from src.physics.audio_processing import normalizar_espectrograma, HOP_LENGTH, MAX_FRAMES
+from src.utils.i18n import t as _t, set_default_lang
 import numpy as np
+import json
 
-# Constante de frecuencia de muestreo unificada (Estándar 16kHz optimizado)
 TARGET_SR = 16000
 
-# ==========================================
-# 🧠 LÓGICA DE INICIALIZACIÓN DE LA IA
-# ==========================================
+# === Language selector (must be first) ===
+if "df_lang" not in st.session_state:
+    st.session_state.df_lang = "es"
+set_default_lang(st.session_state.df_lang)
+
+L = lambda k, **p: _t("app", k, st.session_state.df_lang, **p)
+PDF_L = lambda k, **p: _t("pdf", k, st.session_state.df_lang, **p)
+
+
+# === IA ===
 @st.cache_resource
 def inicializar_red_neuronal():
     try:
         modelo = DeepfakeAudioCNN()
-        ruta_pesos = "src/ai/best_model_v2_augmented.pth" 
-        
+        ruta_pesos = "src/ai/best_model_v2_augmented.pth"
         if os.path.exists(ruta_pesos):
             modelo.load_state_dict(torch.load(ruta_pesos, map_location=torch.device('cpu')))
-            print("✅ PESOS CARGADOS CORRECTAMENTE")
         else:
-            print(f"🚨 ERROR CRÍTICO: No se encontró {ruta_pesos}")
-            st.error(f"🚨 ERROR: El archivo de IA ({ruta_pesos}) no existe. El modelo está adivinando al azar.")
-            
+            st.error(PDF_L("no_model_error", path=ruta_pesos))
         modelo.eval()
         return modelo
     except Exception as e:
-        st.error(f"Error cargando el modelo de IA: {e}")
+        st.error(L("model_error", msg=e))
         return None
 
-# ==========================================
-# 🎨 CONFIGURACIÓN DE LA INTERFAZ (UI)
-# ==========================================
-st.set_page_config(page_title="Detector Forense | UNESCO", page_icon="🔎", layout="wide")
 
-st.title("🔎 Detector Forense de Audio 'Deepfake'")
-st.markdown("### Plataforma de análisis espectral y métricas de fase - UNESCO Youth Hackathon 2026")
-st.markdown("---") 
+st.set_page_config(page_title=L("page_title"), page_icon="🔎", layout="wide")
+
+# === Language selector in sidebar ===
+with st.sidebar:
+    st.markdown(f"### {L('lang_label')}")
+    new_lang = st.radio(
+        L("lang_label"),
+        options=["es", "en"],
+        format_func=lambda x: "Español" if x == "es" else "English",
+        index=0 if st.session_state.df_lang == "es" else 1,
+        label_visibility="collapsed",
+        key="lang_radio",
+    )
+    if new_lang != st.session_state.df_lang:
+        st.session_state.df_lang = new_lang
+        set_default_lang(new_lang)
+        st.rerun()
+
+st.title(L("main_title"))
+st.markdown(f"### {L('main_subtitle')}")
+st.markdown("---")
 
 modelo_ia = inicializar_red_neuronal()
 
-# Control de estado de sesión para reactividad continua
 if 'ultimo_archivo' not in st.session_state:
     st.session_state.ultimo_archivo = None
 
-st.markdown("### 📥 Ingesta de Datos")
+st.markdown(f"### {L('ingest_title')}")
 
-# ==========================================
-# 🧠 FUNCIÓN COMPARTIDA DE PROCESAMIENTO + RENDERIZADO
-# ==========================================
+
 def _procesar_y_mostrar(ruta_video_o_audio, ruta_audio, nombre_original, es_audio):
-    """Procesa un archivo local (subido o descargado) y renderiza resultados."""
     archivos_limpiar = [ruta_audio]
     if not es_audio and ruta_video_o_audio != ruta_audio:
         archivos_limpiar.append(ruta_video_o_audio)
 
     st.markdown("---")
-    st.markdown("### 🔬 Resultados del Análisis Forense")
+    st.markdown(f"### {L('result_title')}")
 
     st.session_state.ultimo_nombre = nombre_original
 
-    with st.spinner("⏳ Procesando señales y ejecutando inferencia profunda..."):
+    with st.spinner(L("spinner_process")):
         os.makedirs("data", exist_ok=True)
 
         inestabilidad_fase = 0.0
@@ -94,7 +106,7 @@ def _procesar_y_mostrar(ruta_video_o_audio, ruta_audio, nombre_original, es_audi
                 extraer_audio_de_video(ruta_video_o_audio, ruta_audio)
 
             if not os.path.exists(ruta_audio):
-                raise Exception("El sistema no pudo extraer la pista de audio. Verifica que el video no sea mudo.")
+                raise Exception(L("no_audio_error"))
 
             y, sr = cargar_y_normalizar_audio(ruta_audio, target_sr=TARGET_SR)
             st.session_state.ultimo_audio_y = y
@@ -114,7 +126,7 @@ def _procesar_y_mostrar(ruta_video_o_audio, ruta_audio, nombre_original, es_audi
                 st.session_state.ultimo_porcentaje_ia = porcentaje_ia
 
         except Exception as e:
-            st.error(f"Error crítico en el procesamiento: {e}")
+            st.error(L("process_error", msg=e))
 
         finally:
             for p in archivos_limpiar:
@@ -124,73 +136,100 @@ def _procesar_y_mostrar(ruta_video_o_audio, ruta_audio, nombre_original, es_audi
                     except:
                         pass
 
-    # ==========================================
-    # 📊 CONTENEDORES Y RENDERIZADO VISUAL
-    # ==========================================
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        st.markdown("#### 🗺️ Mapa de Calor Espectral")
+        st.markdown(f"#### {L('heatmap_title')}")
         if fig_mapa_calor:
             st.plotly_chart(fig_mapa_calor, use_container_width=True)
         else:
-            st.info("Esperando renderizado...")
+            st.info(L("rendering"))
+
+        # Accessible textual summary of spectral findings
+        if porcentaje_ia > 0:
+            num_anomalies = sum(1 for p in predicciones_por_ventana if (p > 50) == (porcentaje_ia > 50))
+            summary = PDF_L("summary_accessible",
+                veredicto="DEEPFAKE" if porcentaje_ia > 50 else "REAL",
+                confianza=f"{porcentaje_ia:.1f}" if porcentaje_ia > 50 else f"{100 - porcentaje_ia:.1f}",
+                inestabilidad=f"{inestabilidad_fase:.4f}",
+                anomalias=num_anomalies
+            )
+            st.caption(summary)
 
     with col2:
-        st.markdown("#### 📊 Métricas de Predicción")
+        st.markdown(f"#### {L('metrics_title')}")
 
         if porcentaje_ia > 85:
-            estado_alerta = "🚨 ALTO RIESGO: Fraude Sintético"
+            estado_alerta = L("alert_high")
             color_delta = "inverse"
         elif porcentaje_ia > 60:
-            estado_alerta = "⚠️ ADVERTENCIA: Audio Modificado"
+            estado_alerta = L("alert_warning")
             color_delta = "off"
         else:
-            estado_alerta = "✅ SEGURO: Audio Auténtico"
+            estado_alerta = L("alert_safe")
             color_delta = "normal"
 
         st.metric(
-            label="🤖 Probabilidad de Deepfake (IA)",
+            label=L("deepfake_prob"),
             value=f"{porcentaje_ia:.1f}%",
             delta=estado_alerta,
             delta_color=color_delta
         )
         st.progress(int(porcentaje_ia) / 100)
 
-        with st.expander("Ver desglose técnico de inferencia"):
-            st.write("**Arquitectura:** DeepfakeAudioCNN")
-            st.write(f"**Tasa de Muestreo:** {TARGET_SR} Hz")
-            st.write("**Tensores Procesados:** MFCCs + STFT Compleja")
+        with st.expander(L("tech_expander")):
+            st.write(f"**{L('tech_arch')}**")
+            st.write(f"**{L('tech_sampling', sr=TARGET_SR)}**")
+            st.write(f"**{L('tech_tensors')}**")
             if len(predicciones_por_ventana) > 1:
-                st.write(f"**Ventanas analizadas:** {len(predicciones_por_ventana)} (audio completo, sin truncar)")
+                st.write(L("tech_windows", count=len(predicciones_por_ventana)))
                 for t_ini, prob in zip(tiempos_ventanas, predicciones_por_ventana):
-                    st.write(f"  • Segundo {t_ini:.1f}s: {prob:.1f}% Fake")
+                    st.write(f"  • {L('tech_second', time=t_ini, prob=prob)}")
 
         st.download_button(
-            label="📄 Descargar Reporte Forense (PDF)",
+            label=L("download_pdf_btn"),
             data=generar_reporte_forense(
                 nombre_original, y, sr, porcentaje_ia,
                 inestabilidad_fase=inestabilidad_fase,
                 tiempos_ventanas=tiempos_ventanas,
                 predicciones_por_ventana=predicciones_por_ventana,
+                idioma=st.session_state.df_lang,
             ).read(),
             file_name=f"reporte_forense_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
             mime="application/pdf",
             use_container_width=True,
         )
 
+        if porcentaje_ia > 0:
+            lang = st.session_state.df_lang
+            verdict = "DEEPFAKE" if porcentaje_ia > 50 else "REAL"
+            conf = f"{porcentaje_ia:.1f}" if porcentaje_ia > 50 else f"{100 - porcentaje_ia:.1f}"
+            text = json.dumps(L("speak_result", veredicto=verdict, confianza=conf))
+            voice_lang = "es-ES" if lang == "es" else "en-US"
+            st.components.v1.html(f"""
+            <button onclick="
+                var msg = new SpeechSynthesisUtterance({text});
+                msg.lang = '{voice_lang}';
+                msg.rate = 0.9;
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(msg);
+            " style="width:100%; padding:8px; border:1px solid #ccc; border-radius:8px; background:#f0f2f6; cursor:pointer; font-size:14px;">
+                🔊 {L("listening")}
+            </button>
+            """, height=50)
+
         st.divider()
 
         st.metric(
-            label="📐 Inestabilidad de Fase",
+            label=L("phase_metric"),
             value=f"{inestabilidad_fase:.4f}",
-            delta="Ruptura de fase detectada" if inestabilidad_fase > 3.5 else "Fase estable",
+            delta=L("phase_rupture") if inestabilidad_fase > 3.5 else L("phase_stable"),
             delta_color="inverse" if inestabilidad_fase > 3.5 else "normal"
         )
 
         if modelo_ia is not None and len(predicciones_por_ventana) > 0:
             st.divider()
-            st.markdown("#### 🔬 Análisis de Explicabilidad (Grad-CAM)")
+            st.markdown(f"#### {L('gradcam_title')}")
 
             idx_max = int(np.argmax(predicciones_por_ventana))
             t_ventana = tiempos_ventanas[idx_max]
@@ -205,23 +244,19 @@ def _procesar_y_mostrar(ruta_video_o_audio, ruta_audio, nombre_original, es_audi
 
             buf = _figura_superposicion(ventana_mel, cam, sr=TARGET_SR, hop_length=HOP_LENGTH)
             st.image(buf, use_container_width=True)
-            st.caption(f"Ventana más relevante: segundo {t_ventana:.1f}s — "
-                       f"probabilidad deepfake: {predicciones_por_ventana[idx_max]:.1f}%")
+            st.caption(L("gradcam_caption", time=t_ventana, prob=predicciones_por_ventana[idx_max]))
 
 
-# ==========================================
-# 📁 PESTAÑAS DE INGESTA
-# ==========================================
-tab_upload, tab_link = st.tabs(["📁 Subir archivo", "🔗 Pegar enlace (Facebook / Instagram / TikTok / X)"])
+tab_upload, tab_link = st.tabs([L("tab_upload"), L("tab_link")])
 
 with tab_upload:
-    archivo_video = st.file_uploader("Arrastra y suelta el video o audio sospechoso aquí...", type=["mp4", "avi", "mov", "wav", "mp3"])
+    archivo_video = st.file_uploader(L("upload_label"), type=["mp4", "avi", "mov", "wav", "mp3"])
 
     if archivo_video is not None:
         if st.session_state.ultimo_archivo != archivo_video.name:
             st.session_state.ultimo_archivo = archivo_video.name
 
-        st.success(f"✅ Archivo '{archivo_video.name}' cargado exitosamente.")
+        st.success(f"✅ {L('upload_success')} '{archivo_video.name}'")
         st.video(archivo_video)
 
         id_unico = str(uuid.uuid4())[:8]
@@ -242,17 +277,17 @@ with tab_upload:
 
 with tab_link:
     url = st.text_input(
-        "Pega el enlace del video:",
-        placeholder="https://www.tiktok.com/@usuario/video/123456789..."
+        L("link_label"),
+        placeholder=L("link_placeholder")
     )
 
-    if url and st.button("Analizar enlace", type="primary"):
+    if url and st.button(L("analyze_btn"), type="primary"):
         try:
-            with st.spinner("⏳ Descargando contenido desde la red social..."):
+            with st.spinner(L("spinner_download")):
                 ruta_descargada = descargar_video_de_red_social(url)
 
             nombre_original = os.path.basename(ruta_descargada)
-            st.success(f"✅ Video descargado exitosamente.")
+            st.success(f"✅ {L('download_success')}")
             st.video(ruta_descargada)
 
             id_unico = str(uuid.uuid4())[:8]
