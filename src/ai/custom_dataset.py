@@ -147,6 +147,10 @@ class DeepfakeAudioDataset(Dataset):
         with silenciar():
             y, sr = cargar_y_normalizar_audio(file_path, target_sr=TARGET_SR)
 
+            if self.augment:
+                from src.ai.audio_augmentation import augmentar_audio_crudo
+                y = augmentar_audio_crudo(y, sr)
+
             mel_db, _, _ = calcular_stft_y_mel(y, sr)
 
             if self.normalizar:
