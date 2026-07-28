@@ -6,51 +6,82 @@ import warnings
 warnings.filterwarnings('ignore')
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
+import torchaudio
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 
 # === Entrenamiento de Produccion ===
 N_EPOCHS = 30
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 VAL_SPLIT = 0.15
-# LR moderado para fine-tuning desde 48kHz -> 16kHz
 LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 1e-4
 PATIENCE_EARLY = 6
 PATIENCE_LR = 3
 FACTOR_LR = 0.5
 MAX_SAMPLES = 100000
+N_MELS = 128
+MAX_FRAMES = 300
+VALOR_SILENCIO_DB = -80.0
 
-MODEL_SAVE_PATH = "src/ai/best_model.pth"
+# Opción (b) GPU: cachear waveforms crudos en RAM, aplicar augmentar_audio_crudo
+# en CPU (__getitem__), y computar MelSpectrogram en GPU por batch usando
+# torchaudio.transforms.MelSpectrogram + AmplitudeToDB. Esto elimina el cuello
+# de botella de librosa CPU y evita IPC overhead de workers en Windows.
+MODEL_SAVE_PATH = "src/ai/best_model_v2_augmented.pth"
 MODEL_WAV_PATH = "src/ai/best_model_wav.pth"
 
 
-class PrecomputedDataset(Dataset):
-    def __init__(self, spectrograms, labels, augment=False):
-        self.spectrograms = spectrograms
+class PrecomputedRawAudioDataset(Dataset):
+    def __init__(self, raw_audios, labels, sr=16000, augment=False):
+        self.raw_audios = raw_audios
         self.labels = labels
+        self.sr = sr
         self.augment = augment
 
     def __len__(self):
         return len(self.labels)
 
     def __getitem__(self, idx):
-        spec = self.spectrograms[idx].clone()
+        y = self.raw_audios[idx].copy()
+        lbl = self.labels[idx]
+
         if self.augment:
-            from src.ai.custom_dataset import augmentar_espectrograma_tensor
-            spec = augmentar_espectrograma_tensor(spec)
-        return spec, torch.tensor(self.labels[idx], dtype=torch.long)
+            from src.ai.audio_augmentation import augmentar_audio_crudo
+            y = augmentar_audio_crudo(y, self.sr)
+
+        audio_tensor = torch.from_numpy(y).float()
+        return audio_tensor, torch.tensor(lbl, dtype=torch.long)
 
 
-def precomputar_espectrogramas(dataset):
-    specs = []
+def collate_audios(batch):
+    audios, labels = zip(*batch)
+    max_len = max(a.shape[0] for a in audios)
+    padded = []
+    for a in audios:
+        if a.shape[0] < max_len:
+            a = F.pad(a, (0, max_len - a.shape[0]))
+        padded.append(a)
+    return torch.stack(padded), torch.stack(labels)
+
+
+def precomputar_audios_crudos(dataset):
+    from src.physics.audio_processing import cargar_y_normalizar_audio
+    from src.ai.custom_dataset import TARGET_SR, silenciar
+
+    audios = []
     labels = []
     t0 = time.time()
     n = len(dataset)
     for i in range(n):
-        spec, lbl = dataset[i]
-        specs.append(spec.cpu())
+        file_path = dataset.files[i]
+        lbl = dataset.labels[i]
+        with silenciar():
+            y, _ = cargar_y_normalizar_audio(file_path, target_sr=TARGET_SR)
+        audios.append(y.astype(np.float32))
         labels.append(lbl)
         if (i + 1) % 100 == 0 or i == n - 1:
             elapsed = time.time() - t0
@@ -58,8 +89,8 @@ def precomputar_espectrogramas(dataset):
             eta = (n - i - 1) / tasa if tasa > 0 else 0
             print(f"  Precomputo: {i+1}/{n} ({elapsed:.0f}s, {tasa:.1f}/s, ETA {eta:.0f}s)")
             sys.stdout.flush()
-    print(f"Precomputo completo: {len(specs)} muestras en {time.time()-t0:.0f}s")
-    return specs, labels
+    print(f"Precomputo completo: {len(audios)} muestras en {time.time()-t0:.0f}s")
+    return audios, labels
 
 
 def cargar_pesos_pretreinados(model, ruta):
@@ -80,42 +111,82 @@ def cargar_pesos_pretreinados(model, ruta):
         return model, False
 
 
+def procesar_lote_en_gpu(audios, device, mel_transform, db_transform, augment, intensidad=1.0):
+    audios = audios.to(device)
+
+    mel = mel_transform(audios)
+    mel_db = db_transform(mel)
+
+    B, n_mels, T = mel_db.shape
+
+    if T < MAX_FRAMES:
+        pad = MAX_FRAMES - T
+        mel_db = F.pad(mel_db, (0, pad), mode='constant', value=mel_db.min().item())
+    elif T > MAX_FRAMES:
+        mel_db = mel_db[:, :, :MAX_FRAMES]
+
+    mean = mel_db.mean(dim=(1, 2), keepdim=True)
+    std = mel_db.std(dim=(1, 2), keepdim=True)
+    std = std.clamp(min=1e-8)
+    mel_db = (mel_db - mean) / std
+
+    mel_db = mel_db.unsqueeze(1)
+
+    if augment:
+        from src.ai.custom_dataset import augmentar_espectrograma_tensor
+        for i in range(B):
+            mel_db[i, 0] = augmentar_espectrograma_tensor(mel_db[i, 0], intensidad=intensidad)
+
+    return mel_db
+
+
 def evaluar_en_test(model, device):
-    from src.ai.custom_dataset import DeepfakeAudioDataset
-    ds_test = DeepfakeAudioDataset(base_dir="./data", split="test", augment=False, normalizar=True)
-    if len(ds_test) == 0:
+    from src.ai.custom_dataset import DeepfakeAudioDataset, TARGET_SR
+    
+    ds_test_raw = DeepfakeAudioDataset(base_dir="./data", split="test", augment=False, normalizar=True)
+    if len(ds_test_raw) == 0:
         print("[Fase 5] No hay datos de test para evaluar.")
         return
-
-    loader_test = DataLoader(ds_test, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+        
+    print("\nPrecomputando audios crudos de Test...")
+    audios_test, labels_test = precomputar_audios_crudos(ds_test_raw)
+    
+    ds_test = PrecomputedRawAudioDataset(audios_test, labels_test, sr=TARGET_SR, augment=False)
+    
+    loader_test = DataLoader(ds_test, batch_size=BATCH_SIZE, shuffle=False, num_workers=0, collate_fn=collate_audios)
+    
+    mel_transform = torchaudio.transforms.MelSpectrogram(sample_rate=TARGET_SR, n_fft=2048, hop_length=512, n_mels=N_MELS).to(device)
+    db_transform = torchaudio.transforms.AmplitudeToDB().to(device)
+    
     model.eval()
     todas_preds = []
     todas_reales = []
-
+    
     with torch.no_grad():
-        for espectrogramas, etiquetas in loader_test:
-            espectrogramas = espectrogramas.to(device)
+        for audios, etiquetas in loader_test:
+            etiquetas = etiquetas.to(device)
+            espectrogramas = procesar_lote_en_gpu(audios, device, mel_transform, db_transform, augment=False)
             salidas = model(espectrogramas)
             _, preds = torch.max(salidas, 1)
             todas_preds.extend(preds.cpu().tolist())
             todas_reales.extend(etiquetas.tolist())
-
+            
     todas_reales = np.array(todas_reales)
     todas_preds = np.array(todas_preds)
-
+    
     VP = np.sum((todas_preds == 1) & (todas_reales == 1))
     FP = np.sum((todas_preds == 1) & (todas_reales == 0))
     VN = np.sum((todas_preds == 0) & (todas_reales == 0))
     FN = np.sum((todas_preds == 0) & (todas_reales == 1))
-
+    
     total = len(todas_reales)
     accuracy = 100.0 * (VP + VN) / total if total > 0 else 0.0
     precision_fake = 100.0 * VP / (VP + FP) if (VP + FP) > 0 else 0.0
     recall_fake = 100.0 * VP / (VP + FN) if (VP + FN) > 0 else 0.0
     f1_fake = 2 * precision_fake * recall_fake / (precision_fake + recall_fake) if (precision_fake + recall_fake) > 0 else 0.0
-
+    
     print(f"\n{'='*55}")
-    print(f"  Fase 5: Validacion en Test ({len(ds_test)} muestras de .mp4)")
+    print(f"  Fase 5: Validacion en Test ({len(ds_test_raw)} muestras)")
     print(f"{'='*55}")
     print(f"  Matriz de Confusion:")
     print(f"                    Predicho")
@@ -131,7 +202,7 @@ def evaluar_en_test(model, device):
 
 
 def ejecutar_entrenamiento():
-    from src.ai.custom_dataset import DeepfakeAudioDataset
+    from src.ai.custom_dataset import DeepfakeAudioDataset, TARGET_SR
     from src.ai.model import DeepfakeAudioCNN
 
     dataset_full = DeepfakeAudioDataset(base_dir="./data", split="train", augment=False, normalizar=True)
@@ -160,14 +231,14 @@ def ejecutar_entrenamiento():
     ds_train_raw = DeepfakeAudioDataset(file_list=files_train, label_list=labels_train, augment=False, normalizar=True)
     ds_val_raw = DeepfakeAudioDataset(file_list=files_val, label_list=labels_val, augment=False, normalizar=True)
 
-    print(f"Precomputando espectrogramas...")
+    print(f"Precomputando waveforms crudos...")
     print(f"Train: {len(ds_train_raw)} muestras")
-    specs_train, labels_train = precomputar_espectrogramas(ds_train_raw)
+    audios_train, labels_train = precomputar_audios_crudos(ds_train_raw)
     print(f"Val: {len(ds_val_raw)} muestras")
-    specs_val, labels_val = precomputar_espectrogramas(ds_val_raw)
+    audios_val, labels_val = precomputar_audios_crudos(ds_val_raw)
 
-    ds_train = PrecomputedDataset(specs_train, labels_train, augment=True)
-    ds_val = PrecomputedDataset(specs_val, labels_val, augment=False)
+    ds_train = PrecomputedRawAudioDataset(audios_train, labels_train, sr=TARGET_SR, augment=True)
+    ds_val = PrecomputedRawAudioDataset(audios_val, labels_val, sr=TARGET_SR, augment=False)
     print(f"\nTrain: {len(ds_train)} | Val: {len(ds_val)}")
 
     clase_counts = np.bincount(labels_train)
@@ -178,8 +249,14 @@ def ejecutar_entrenamiento():
     if device.type == "cpu":
         print("  [WARN] PyTorch CPU-only. Para usar GTX 1650: instalar Python 3.12-3.13 y pip install torch --index-url https://download.pytorch.org/whl/cu124")
 
-    loader_train = DataLoader(ds_train, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
-    loader_val = DataLoader(ds_val, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+    # Transformadores GPU: MelSpectrogram + dB
+    mel_transform = torchaudio.transforms.MelSpectrogram(
+        sample_rate=TARGET_SR, n_fft=2048, hop_length=512, n_mels=N_MELS
+    ).to(device)
+    db_transform = torchaudio.transforms.AmplitudeToDB()
+
+    loader_train = DataLoader(ds_train, batch_size=BATCH_SIZE, shuffle=True, num_workers=0, collate_fn=collate_audios)
+    loader_val = DataLoader(ds_val, batch_size=BATCH_SIZE, shuffle=False, num_workers=0, collate_fn=collate_audios)
 
     model = DeepfakeAudioCNN().to(device)
     model, pretrained = cargar_pesos_pretreinados(model, MODEL_WAV_PATH)
@@ -205,8 +282,11 @@ def ejecutar_entrenamiento():
         running_loss = 0.0
         t_epoca = time.time()
 
-        for espectrogramas, etiquetas in loader_train:
-            espectrogramas, etiquetas = espectrogramas.to(device), etiquetas.to(device)
+        for audios, etiquetas in loader_train:
+            etiquetas = etiquetas.to(device)
+            espectrogramas = procesar_lote_en_gpu(
+                audios, device, mel_transform, db_transform, augment=True
+            )
             optimizer.zero_grad()
             predicciones = model(espectrogramas)
             loss = criterion(predicciones, etiquetas)
@@ -223,8 +303,11 @@ def ejecutar_entrenamiento():
         total = 0
 
         with torch.no_grad():
-            for espectrogramas, etiquetas in loader_val:
-                espectrogramas, etiquetas = espectrogramas.to(device), etiquetas.to(device)
+            for audios, etiquetas in loader_val:
+                etiquetas = etiquetas.to(device)
+                espectrogramas = procesar_lote_en_gpu(
+                    audios, device, mel_transform, db_transform, augment=False
+                )
                 salidas = model(espectrogramas)
                 loss = criterion(salidas, etiquetas)
                 loss_val_acum += loss.item()
