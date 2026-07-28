@@ -1,7 +1,7 @@
 <div align="center">
   <br>
   <h1>🕵️ DeepForensic</h1>
-  <p><strong>Detector Forense de Deepfakes de Audio</strong></p>
+  <p><strong>Audio Deepfake Forensic Detector</strong></p>
   <p><em>UNESCO Youth Hackathon 2026</em></p>
   <br>
   <p>
@@ -17,118 +17,118 @@
 
 ---
 
-## 📋 Descripción
+## 📋 Description
 
-**DeepForensic** es una plataforma forense multiplataforma diseñada para detectar **deepfakes de audio** mediante un enfoque híbrido que combina **análisis físico de señales**, **métricas matemáticas de fase** e **inteligencia artificial profunda** (CNN).
+**DeepForensic** is a cross-platform forensic platform designed to detect **audio deepfakes** through a hybrid approach combining **physical signal analysis**, **mathematical phase metrics**, and **deep artificial intelligence** (CNN).
 
-Desarrollada para el **UNESCO Youth Hackathon 2026**, la herramienta permite a periodistas, investigadores forenses y público general verificar la autenticidad de contenido auditivo proveniente de redes sociales, archivos locales o enlaces directos.
+Developed for the **UNESCO Youth Hackathon 2026**, the tool enables journalists, forensic investigators, and the general public to verify the authenticity of audio content from social media, local files, or direct links.
 
-La detección se basa en un principio fundamental: **los vocoders neuronales (WaveNet, Tacotron, etc.) dejan artefactos espectrales y discontinuidades de fase que no ocurren en la voz humana natural**. DeepForensic explota estas huellas forenses para clasificar audios como REAL o FAKE con alta precisión.
+Detection is based on a fundamental principle: **neural vocoders (WaveNet, Tacotron, etc.) leave spectral artifacts and phase discontinuities that do not occur in natural human speech**. DeepForensic exploits these forensic fingerprints to classify audio as REAL or FAKE with high accuracy.
 
 ---
 
-## ✨ Características Clave
+## ✨ Key Features
 
-| Característica | Descripción |
+| Feature | Description |
 |---|---|
-| **🔬 Análisis Dual** | Combina métricas físicas (fase, energía espectral) con una CNN profunda para máxima precisión |
-| **🌐 Multi-plataforma** | Interfaz web (Streamlit), API REST (FastAPI) y extensión para Chrome |
-| **📱 Redes Sociales** | Descarga y analiza videos directamente desde YouTube, Twitter/X, TikTok, Instagram y Facebook |
-| **🗺️ Heatmap Interactivo** | Visualización forense con detección automática de anomalías espectrales y de fase |
-| **🔍 Explicabilidad (Grad-CAM)** | Mapas de activación que revelan qué regiones del espectro llevaron al veredicto |
-| **📄 Reportes PDF** | Genera reportes forenses descargables con evidencias visuales y métricas |
-| **🌍 Internacionalización** | Interfaz completa en Español e Inglés |
-| **🔊 Accesibilidad** | Síntesis de voz del resultado forense (Web Speech API) |
-| **📊 Análisis Temporal** | Ventanas deslizantes sobre el audio completo, sin truncamiento |
-| **⚡ Baja Latencia** | Pipeline optimizado con precomputación en GPU y caching de tensores |
+| **🔬 Dual Analysis** | Combines physical metrics (phase, spectral energy) with a deep CNN for maximum accuracy |
+| **🌐 Cross-platform** | Web interface (Streamlit), REST API (FastAPI), and Chrome extension |
+| **📱 Social Media** | Download and analyze videos directly from YouTube, Twitter/X, TikTok, Instagram, and Facebook |
+| **🗺️ Interactive Heatmap** | Forensic visualization with automatic detection of spectral and phase anomalies |
+| **🔍 Explainability (Grad-CAM)** | Activation maps revealing which spectral regions drove the verdict |
+| **📄 PDF Reports** | Generates downloadable forensic reports with visual evidence and metrics |
+| **🌍 Internationalization** | Full interface in English and Spanish |
+| **🔊 Accessibility** | Speech synthesis of the forensic result (Web Speech API) |
+| **📊 Temporal Analysis** | Sliding windows over the entire audio, no truncation |
+| **⚡ Low Latency** | Optimized pipeline with GPU precomputation and tensor caching |
 
 ---
 
-## 🏗️ Arquitectura del Sistema
+## 🏗️ System Architecture
 
 ```
                     ┌─────────────────────────────────────────────────────┐
-                    │               ENTRADA DE DATOS                      │
-                    │  [Archivo local]  [URL red social]  [Página web]    │
+                    │                 DATA INPUT                          │
+                    │  [Local file]  [Social URL]  [Web page]            │
                     └──────────────────────┬──────────────────────────────┘
                                            ▼
                     ┌─────────────────────────────────────────────────────┐
-                    │          EXTRACCIÓN DE AUDIO (FFmpeg)               │
-                    │  • Monofonización   • 16 kHz   • Normalización pico │
+                    │          AUDIO EXTRACTION (FFmpeg)                  │
+                    │  • Mono conversion  • 16 kHz  • Peak normalization │
                     └──────────────────────┬──────────────────────────────┘
                                            ▼
         ┌──────────────────────────────────────────────────────────────────┐
-        │               PIPELINE DE PROCESAMIENTO HÍBRIDO                  │
+        │               HYBRID PROCESSING PIPELINE                        │
         │                                                                  │
         │  ┌─────────────────────┐        ┌────────────────────────────┐   │
-        │  │   MÓDULO FÍSICO     │        │    MÓDULO DE IA (CNN)       │   │
+        │  │   PHYSICAL MODULE   │        │     AI MODULE (CNN)        │   │
         │  │                     │        │                             │   │
-        │  │ • STFT (n_fft=2048) │        │ • Ventanas deslizantes     │   │
-        │  │ • Mel (128 bandas)  │        │   (300 frames, stride 150) │   │
-        │  │ • MFCCs (13 coefs)  │        │ • Normalización individual │   │
-        │  │ • Filtro Butterworth│        │   por ventana (z-score)    │   │
-        │  │   paso-alto (4 kHz) │        │ • Padding con -80 dB       │   │
-        │  │ • Regularidad de    │        │ • DeepfakeAudioCNN         │   │
-        │  │   fase (varianza    │        │   (4 bloques conv + ADAPT) │   │
-        │  │   de derivada)      │        │ • Grad-CAM (capa conv4)    │   │
+        │  │ • STFT (n_fft=2048) │        │ • Sliding windows          │   │
+        │  │ • Mel (128 bands)   │        │   (300 frames, stride 150) │   │
+        │  │ • MFCCs (13 coefs)  │        │ • Per-window normalization │   │
+        │  │ • Butterworth       │        │   (z-score)                │   │
+        │  │   high-pass (4 kHz) │        │ • Padding with -80 dB      │   │
+        │  │ • Phase regularity  │        │ • DeepfakeAudioCNN         │   │
+        │  │   (derivative       │        │   (4 conv blocks + ADAPT)  │   │
+        │  │    variance)        │        │ • Grad-CAM (conv4 layer)   │   │
         │  └──────────┬──────────┘        └──────────────┬─────────────┘   │
         │             │                                   │                 │
         └─────────────┼───────────────────────────────────┼─────────────────┘
                       ▼                                   ▼
         ┌──────────────────────────────────────────────────────────────────┐
-        │                    VEREDICTO HÍBRIDO                             │
-        │  • Top-2 promedio de ventanas más deepfake                     │
-        │  • Umbral: >50% → DEEPFAKE, ≤50% → REAL                       │
-        │  • Inestabilidad de fase > 3.5 → alerta de manipulación        │
+        │                    HYBRID VERDICT                                │
+        │  • Top-2 average of most deepfake windows                       │
+        │  • Threshold: >50% → DEEPFAKE, ≤50% → REAL                     │
+        │  • Phase instability > 3.5 → manipulation alert                 │
         └──────────────────────────┬───────────────────────────────────────┘
                                    ▼
         ┌──────────────────────────────────────────────────────────────────┐
-        │                    VISUALIZACIÓN Y REPORTES                      │
-        │  • Heatmap interactivo (Plotly) con anomalías resaltadas        │
-        │  • Métricas de predicción con códigos de color                 │
-        │  • Grad-CAM: regiones críticas del espectro                    │
-        │  • Reporte PDF descargable (reportlab)                         │
-        │  • Síntesis de voz del resultado                               │
+        │                    VISUALIZATION AND REPORTS                     │
+        │  • Interactive heatmap (Plotly) with highlighted anomalies       │
+        │  • Prediction metrics with color codes                          │
+        │  • Grad-CAM: critical spectral regions                          │
+        │  • Downloadable PDF report (reportlab)                          │
+        │  • Speech synthesis of the result                               │
         └──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🧪 La Ciencia Detrás de la Detección
+## 🧪 The Science Behind Detection
 
-### 🔷 Análisis de Fase (La "Huella Digital" del Vocoder)
+### 🔷 Phase Analysis (The Vocoder's "Digital Fingerprint")
 
-Los vocoders neuronales generan audio muestreando una señal continua a partir de representaciones paramétricas. Este proceso introduce **discontinuidades en la fase** de la señal que son estadísticamente detectables:
+Neural vocoders generate audio by sampling a continuous signal from parametric representations. This process introduces **phase discontinuities** in the signal that are statistically detectable:
 
-1. Se calcula la **STFT compleja** de la señal
-2. Se extrae el **ángulo (fase)** en radianes: `φ(t, f) = arctan2(imag, real)`
-3. Se calcula la **derivada temporal**: `Δφ(t, f) = φ(t+1, f) − φ(t, f)`
-4. Se **envuelve** a `[−π, π]` para eliminar saltos naturales de `2π`
-5. La **varianza** de `Δφ` a lo largo del tiempo mide qué tan caótica es la fase
+1. Compute the **complex STFT** of the signal
+2. Extract the **angle (phase)** in radians: `φ(t, f) = arctan2(imag, real)`
+3. Compute the **temporal derivative**: `Δφ(t, f) = φ(t+1, f) − φ(t, f)`
+4. **Wrap** to `[−π, π]` to remove natural `2π` jumps
+5. The **variance** of `Δφ` over time measures how chaotic the phase is
 
-**Interpretación**: La voz humana natural tiene una fase suave y predecible. Un valor de **inestabilidad > 3.5** sugiere fuertemente síntesis artificial.
+**Interpretation**: Natural human speech has a smooth and predictable phase. An **instability value > 3.5** strongly suggests artificial synthesis.
 
-### 🔷 Mel-Spectrogram y Psicoacústica
+### 🔷 Mel-Spectrogram and Psychoacoustics
 
-El oído humano percibe la frecuencia de forma logarítmica. La **escala Mel** modela esta percepción:
+The human ear perceives frequency logarithmically. The **Mel scale** models this perception:
 
 ```
 mel(f) = 2595 · log₁₀(1 + f/700)
 ```
 
-Transformamos el audio a un espectrograma de 128 bandas Mel en dB, que sirve como entrada para la CNN. Esto reduce la dimensionalidad mientras preserva la información perceptual relevante.
+We transform the audio into a 128-band Mel spectrogram in dB, which serves as input to the CNN. This reduces dimensionality while preserving relevant perceptual information.
 
-### 🔷 Filtro Paso-Alto (4 kHz)
+### 🔷 High-Pass Filter (4 kHz)
 
-Los artefactos de vocoder tienden a concentrarse en **altas frecuencias** (> 4 kHz), donde el habla humana tiene menos energía estructural. Aplicamos un filtro Butterworth de orden 5 (fase cero, orden efectivo 10) con `scipy.signal.filtfilt()` para aislar estas regiones sospechosas.
+Vocoder artifacts tend to concentrate at **high frequencies** (> 4 kHz), where human speech has less structural energy. We apply a 5th-order Butterworth filter (zero-phase, effective order 10) with `scipy.signal.filtfilt()` to isolate these suspicious regions.
 
-### 🔷 Ventanas Deslizantes con Top-2 Averaging
+### 🔷 Sliding Windows with Top-2 Averaging
 
-En lugar de truncar el audio, lo dividimos en **ventanas de ~9.6 segundos** (300 frames) con stride de 150 frames. Cada ventana se normaliza individualmente (z-score sobre su contenido real, excluyendo el padding de -80 dB). El **veredicto final** es el promedio de las dos ventanas con mayor probabilidad deepfake, garantizando que el análisis cubra todo el audio sin perder información.
+Instead of truncating the audio, we split it into **~9.6 second windows** (300 frames) with a stride of 150 frames. Each window is individually normalized (z-score over its real content, excluding -80 dB padding). The **final verdict** is the average of the two windows with the highest deepfake probability, ensuring the analysis covers the entire audio without losing information.
 
 ### 🔷 DeepfakeAudioCNN
 
-Arquitectura convolucional diseñada específicamente para clasificación de espectrogramas:
+Convolutional architecture specifically designed for spectrogram classification:
 
 ```
 Input: (B, 1, 128, 300)
@@ -136,56 +136,56 @@ Input: (B, 1, 128, 300)
   Conv2D(32→64, k=3) → BatchNorm → ReLU → MaxPool(2×2)
   Conv2D(64→128, k=3) → BatchNorm → ReLU → MaxPool(2×2)
   Conv2D(128→256, k=3) → BatchNorm → ReLU → MaxPool(2×2)
-  AdaptiveAvgPool2d(4×4)    ← compatible con cualquier duración
+  AdaptiveAvgPool2d(4×4)    ← compatible with any duration
   FC(4096→256) → Dropout(0.3) → FC(256→2) → Softmax
 Output: [P(REAL), P(FAKE)]
 ```
 
-**Clave**: El `AdaptiveAvgPool2d` permite procesar audios de cualquier duración sin distorsión.
+**Key**: `AdaptiveAvgPool2d` allows processing audio of any duration without distortion.
 
-### 🔷 Grad-CAM (Explicabilidad)
+### 🔷 Grad-CAM (Explainability)
 
-Para entender *qué* llevó al modelo a decidir, aplicamos **Grad-CAM** sobre la última capa convolucional (`conv4`):
+To understand *what* drove the model's decision, we apply **Grad-CAM** on the last convolutional layer (`conv4`):
 
-1. Propagamos el audio hacia adelante
-2. Calculamos el gradiente de la clase objetivo respecto a las activaciones de `conv4`
-3. Pesamos los mapas de activación por el gradiente promedio (`GAP`)
-4. Aplicamos ReLU para retener solo las regiones con influencia positiva
-5. Interpolamos al tamaño del espectrograma original
+1. Forward propagate the audio
+2. Compute the gradient of the target class with respect to `conv4` activations
+3. Weight the activation maps by the average gradient (`GAP`)
+4. Apply ReLU to retain only regions with positive influence
+5. Interpolate to the original spectrogram size
 
-El resultado es un **mapa de calor** que muestra las regiones temporales y frecuenciales más determinantes para el veredicto.
+The result is a **heatmap** showing the temporal and frequency regions most decisive for the verdict.
 
 ---
 
-## 📊 Rendimiento del Modelo
+## 📊 Model Performance
 
-| Métrica | Valor |
+| Metric | Value |
 |---------|-------|
 | **Accuracy** | ≥ 97% |
 | **F1-Score (Fake)** | **97.65%** |
 | **Recall (Fake)** | **96.47%** |
-| **Arquitectura** | DeepfakeAudioCNN (4 bloques conv) |
-| **Parámetros** | ~500K |
-| **Latencia media** | < 100 ms por ventana (CPU) |
-| **Formato entrada** | Mel-spectrogram (128×300) |
+| **Architecture** | DeepfakeAudioCNN (4 conv blocks) |
+| **Parameters** | ~500K |
+| **Average Latency** | < 100 ms per window (CPU) |
+| **Input Format** | Mel-spectrogram (128×300) |
 
 ---
 
-## 📦 Requisitos e Instalación
+## 📦 Requirements and Installation
 
-### Prerrequisitos
+### Prerequisites
 - **Python 3.12+**
-- **ffmpeg** (incluido automáticamente vía `imageio-ffmpeg`)
+- **ffmpeg** (automatically included via `imageio-ffmpeg`)
 - **Git**
 
-### Instalación
+### Installation
 
 ```bash
-# 1. Clonar el repositorio
-git clone https://github.com/tu-usuario/unesco-deepfake-forensics.git
+# 1. Clone the repository
+git clone https://github.com/your-username/unesco-deepfake-forensics.git
 cd unesco-deepfake-forensics
 
-# 2. Crear y activar entorno virtual
+# 2. Create and activate virtual environment
 python -m venv venv
 
 # Windows
@@ -194,176 +194,176 @@ venv\Scripts\activate
 # Linux/Mac
 source venv/bin/activate
 
-# 3. Instalar dependencias
+# 3. Install dependencies
 pip install -r requirements.txt
 ```
 
-> **Nota sobre GPU (CUDA)**: Si tienes una GPU NVIDIA, instala PyTorch con soporte CUDA:
+> **Note about GPU (CUDA)**: If you have an NVIDIA GPU, install PyTorch with CUDA support:
 > ```bash
 > pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124
 > ```
 
 ---
 
-## 🚀 Cómo Ejecutar
+## 🚀 How to Run
 
-### 🔹 Modo 1: Aplicación Web (Streamlit)
+### 🔹 Mode 1: Web Application (Streamlit)
 
 ```bash
 streamlit run app.py
 ```
-Abre en [http://localhost:8501](http://localhost:8501)
+Opens at [http://localhost:8501](http://localhost:8501)
 
-Interfaz completa para subir archivos, pegar enlaces de redes sociales y visualizar resultados forenses con mapas de calor interactivos y Grad-CAM.
+Full interface for uploading files, pasting social media links, and viewing forensic results with interactive heatmaps and Grad-CAM.
 
-### 🔹 Modo 2: API REST (para Extensión Chrome)
+### 🔹 Mode 2: REST API (for Chrome Extension)
 
 ```bash
-# Desde la raíz del proyecto
+# From the project root
 uvicorn api_extension_workspace.servidor_api:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-La API estará disponible en [http://localhost:8000](http://localhost:8000) con los siguientes endpoints:
+The API will be available at [http://localhost:8000](http://localhost:8000) with the following endpoints:
 
-| Endpoint | Método | Descripción |
+| Endpoint | Method | Description |
 |---|---|---|
-| `/analyze_file` | POST | Analiza un archivo de audio/video subido |
-| `/analyze_url` | POST | Analiza contenido desde una URL de red social |
-| `/health` | GET | Health check del servidor |
+| `/analyze_file` | POST | Analyze an uploaded audio/video file |
+| `/analyze_url` | POST | Analyze content from a social media URL |
+| `/health` | GET | Server health check |
 
-Documentación interactiva: [http://localhost:8000/docs](http://localhost:8000/docs)
+Interactive documentation: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-### 🔹 Modo 3: Extensión de Chrome
+### 🔹 Mode 3: Chrome Extension
 
-1. Asegúrate de que la **API REST** esté corriendo (Modo 2)
-2. Abre Chrome y ve a `chrome://extensions/`
-3. Activa el **Modo desarrollador** (esquina superior derecha)
-4. Haz clic en **"Cargar extensión sin empaquetar"**
-5. Selecciona la carpeta `api_extension_workspace/chrome_extension/`
-6. El icono de DeepForensic aparecerá en la barra de extensiones
+1. Make sure the **REST API** is running (Mode 2)
+2. Open Chrome and go to `chrome://extensions/`
+3. Enable **Developer mode** (top right corner)
+4. Click **"Load unpacked"**
+5. Select the `api_extension_workspace/chrome_extension/` folder
+6. The DeepForensic icon will appear in the extensions bar
 
-**Funcionalidades de la extensión:**
-- **FAB flotante** en YouTube, Twitter/X, Instagram, TikTok y Facebook: haz clic en 🔍 para analizar la página actual
-- **Menú contextual**: haz clic derecho sobre cualquier enlace para analizarlo
-- **Popup**: sube archivos, pega URLs, revisa historial (últimos 100 análisis)
-- **Notificaciones**: recibirás notificaciones con el veredicto al analizar desde el menú contextual
-- **Historial persistente** con indicadores visuales (rojo = deepfake, verde = real)
+**Extension features:**
+- **Floating FAB** on YouTube, Twitter/X, Instagram, TikTok and Facebook: click 🔍 to analyze the current page
+- **Context menu**: right-click any link to analyze it
+- **Popup**: upload files, paste URLs, browse history (last 100 analyses)
+- **Notifications**: you will receive notifications with the verdict when analyzing from the context menu
+- **Persistent history** with visual indicators (red = deepfake, green = real)
 
 ---
 
-## 🗂️ Estructura del Proyecto
+## 🗂️ Project Structure
 
 ```
 unesco-deepfake-forensics/
 │
-├── app.py                         # Frontend Streamlit (interfaz web principal)
-├── requirements.txt               # Dependencias del proyecto
-├── test-integracion.py            # Prueba de integración manual
+├── app.py                         # Streamlit frontend (main web interface)
+├── requirements.txt               # Project dependencies
+├── test-integracion.py            # Manual integration test
 │
 ├── src/
-│   ├── sanatizar_dataset.py       # Limpieza de archivos corruptos
+│   ├── sanatizar_dataset.py       # Corrupt file cleanup
 │   │
-│   ├── math_core/                 # 🌐 Módulo matemático
-│   │   ├── metrics.py             # Regularidad de fase (núcleo forense)
-│   │   └── normalization.py       # Normalización de audio y espectrogramas
+│   ├── math_core/                 # 🌐 Mathematical module
+│   │   ├── metrics.py             # Phase regularity (forensic core)
+│   │   └── normalization.py       # Audio and spectrogram normalization
 │   │
-│   ├── physics/                   # ⚛️ Procesamiento de señales
-│   │   └── audio_processing.py    # Pipeline físico completo (STFT, Mel, fase, heatmap)
+│   ├── physics/                   # ⚛️ Signal processing
+│   │   └── audio_processing.py    # Complete physical pipeline (STFT, Mel, phase, heatmap)
 │   │
-│   ├── ai/                        # 🧠 Inteligencia Artificial
-│   │   ├── model.py               # DeepfakeAudioCNN (arquitectura PyTorch)
-│   │   ├── inference.py           # Motor de inferencia rápida
-│   │   ├── custom_dataset.py      # Dataset con cache y augmentación
-│   │   ├── train.py               # Entrenamiento con GPU + early stopping
-│   │   ├── audio_augmentation.py  # Aumento de datos acústico (MP3, ruido, pitch)
-│   │   ├── gradcam.py             # Explicabilidad: Grad-CAM
-│   │   ├── predict.py             # Predicción desde archivo/tensor
-│   │   ├── pipeline.py            # Pipeline de integración IA
-│   │   ├── evaluate.py            # Evaluación comparativa de modelos
-│   │   ├── download_dataset.py    # Datos mock para desarrollo
-│   │   ├── preparar_datos.py      # Descarga datasets Kaggle
-│   │   ├── preparar_fakeavceleb.py # Prepara dataset FakeAVCeleb
-│   │   ├── split_datos.py         # División train/test
-│   │   ├── stress_test.py         # Prueba de estrés de inferencia
-│   │   ├── ui_hooks.py            # Hook de inicialización para UI
-│   │   ├── best_model.pth         # Pesos v1 (original)
-│   │   ├── best_model_v2_augmented.pth  # Pesos v2 (con augmentación)
-│   │   └── best_model_wav.pth     # Pesos pre-entrenados para fine-tuning
+│   ├── ai/                        # 🧠 Artificial Intelligence
+│   │   ├── model.py               # DeepfakeAudioCNN (PyTorch architecture)
+│   │   ├── inference.py           # Fast inference engine
+│   │   ├── custom_dataset.py      # Dataset with caching and augmentation
+│   │   ├── train.py               # Training with GPU + early stopping
+│   │   ├── audio_augmentation.py  # Acoustic data augmentation (MP3, noise, pitch)
+│   │   ├── gradcam.py             # Explainability: Grad-CAM
+│   │   ├── predict.py             # Prediction from file/tensor
+│   │   ├── pipeline.py            # AI integration pipeline
+│   │   ├── evaluate.py            # Comparative model evaluation
+│   │   ├── download_dataset.py    # Mock data for development
+│   │   ├── preparar_datos.py      # Download Kaggle datasets
+│   │   ├── preparar_fakeavceleb.py # Prepare FakeAVCeleb dataset
+│   │   ├── split_datos.py         # Train/test split
+│   │   ├── stress_test.py         # Inference stress test
+│   │   ├── ui_hooks.py            # UI initialization hook
+│   │   ├── best_model.pth         # Weights v1 (original)
+│   │   ├── best_model_v2_augmented.pth  # Weights v2 (with augmentation)
+│   │   └── best_model_wav.pth     # Pre-trained weights for fine-tuning
 │   │
-│   └── utils/                     # 🛠️ Utilidades
-│       ├── social_downloader.py   # Descarga de redes sociales (yt-dlp)
-│       ├── pdf_generator.py       # Generación de reportes PDF (reportlab)
-│       └── i18n.py                # Motor de internacionalización ES/EN
+│   └── utils/                     # 🛠️ Utilities
+│       ├── social_downloader.py   # Social media downloader (yt-dlp)
+│       ├── pdf_generator.py       # PDF report generation (reportlab)
+│       └── i18n.py                # ES/EN internationalization engine
 │
-├── api_extension_workspace/       # 🌐 API y Extensión Chrome
-│   ├── servidor_api.py            # API REST (FastAPI)
-│   └── chrome_extension/          # Extensión de Chrome (MV3)
-│       ├── manifest.json          # Permisos y configuración
-│       ├── background.js          # Service worker (menús, notificaciones)
-│       ├── content.js             # Content script (FAB + modal flotante)
-│       ├── popup.html             # Interfaz del popup
-│       ├── popup.js               # Lógica del popup
-│       ├── popup.css              # Estilos dark mode
-│       ├── i18n.js                # Traducciones frontend
-│       └── icon*.png              # Iconos de la extensión
+├── api_extension_workspace/       # 🌐 API and Chrome Extension
+│   ├── servidor_api.py            # REST API (FastAPI)
+│   └── chrome_extension/          # Chrome Extension (MV3)
+│       ├── manifest.json          # Permissions and configuration
+│       ├── background.js          # Service worker (menus, notifications)
+│       ├── content.js             # Content script (FAB + floating modal)
+│       ├── popup.html             # Popup interface
+│       ├── popup.js               # Popup logic
+│       ├── popup.css              # Dark mode styles
+│       ├── i18n.js                # Frontend translations
+│       └── icon*.png              # Extension icons
 │
 ├── i18n/
-│   └── strings.json               # Strings de traducción ES/EN
+│   └── strings.json               # ES/EN translation strings
 │
-├── data/                          # 📁 Datos
-│   ├── train/{real,fake}/         # Audios de entrenamiento
-│   ├── test/{real,fake}/          # Audios de prueba
-│   ├── samples/                   # Audios de muestra
-│   └── cache/                     # Caché de tensores precomputados
+├── data/                          # 📁 Data
+│   ├── train/{real,fake}/         # Training audio files
+│   ├── test/{real,fake}/          # Test audio files
+│   ├── samples/                   # Sample audio files
+│   └── cache/                     # Precomputed tensor cache
 │
 └── tests/                         # ✅ Tests
-    ├── test_integration.py        # Tests end-to-end
-    └── test_regression.py         # Tests de regresión
+    ├── test_integration.py        # End-to-end tests
+    └── test_regression.py         # Regression tests
 ```
 
 ---
 
-## 🛠️ Tecnologías Utilizadas
+## 🛠️ Technologies Used
 
-| Categoría | Tecnología | Propósito |
+| Category | Technology | Purpose |
 |---|---|---|
-| **Lenguaje** | Python 3.12+ | Núcleo del proyecto |
-| **Deep Learning** | PyTorch, torchaudio | CNN, Grad-CAM, transformadas GPU |
-| **Señales** | librosa, scipy, numpy | STFT, Mel, MFCCs, filtros Butterworth |
-| **Frontend** | Streamlit | Dashboard web interactivo |
-| **Visualización** | Plotly, Matplotlib | Heatmaps, espectrogramas |
-| **API** | FastAPI, Uvicorn | REST API para la extensión |
-| **Extensión** | Chrome MV3, JavaScript | Content script, popup, service worker |
-| **Audio/Video** | FFmpeg, imageio-ffmpeg | Extracción de pista de audio |
-| **Descargas** | yt-dlp | Descarga de redes sociales |
-| **PDF** | reportlab | Reportes forenses |
-| **Datasets** | kagglehub | Descarga de datasets |
-| **Testing** | pytest | Tests de integración y regresión |
+| **Language** | Python 3.12+ | Project core |
+| **Deep Learning** | PyTorch, torchaudio | CNN, Grad-CAM, GPU transforms |
+| **Signals** | librosa, scipy, numpy | STFT, Mel, MFCCs, Butterworth filters |
+| **Frontend** | Streamlit | Interactive web dashboard |
+| **Visualization** | Plotly, Matplotlib | Heatmaps, spectrograms |
+| **API** | FastAPI, Uvicorn | REST API for the extension |
+| **Extension** | Chrome MV3, JavaScript | Content script, popup, service worker |
+| **Audio/Video** | FFmpeg, imageio-ffmpeg | Audio track extraction |
+| **Downloads** | yt-dlp | Social media downloading |
+| **PDF** | reportlab | Forensic reports |
+| **Datasets** | kagglehub | Dataset downloading |
+| **Testing** | pytest | Integration and regression tests |
 
 ---
 
 ## 📚 Datasets
 
-DeepForensic se entrena con los siguientes datasets, descargables automáticamente:
+DeepForensic is trained on the following datasets, automatically downloadable:
 
-| Dataset | Clase | Fuente |
+| Dataset | Class | Source |
 |---|---|---|
 | **FakeAudio** | FAKE | Kaggle - `walimuhammadahmad/fakeaudio` |
 | **Speaker Recognition** | REAL | Kaggle - `vjcalling/speaker-recognition-audio-dataset` |
 | **FakeAVCeleb** | FAKE + REAL | Kaggle - `shreyaty08/fakeavceleb` |
 
-Para preparar los datos:
+To prepare the data:
 ```bash
-# Descargar y submuestrear 5000 audios por clase
+# Download and subsample 5000 audio files per class
 python src/ai/preparar_datos.py
 
-# (Opcional) Preparar FakeAVCeleb
+# (Optional) Prepare FakeAVCeleb
 python src/ai/preparar_fakeavceleb.py
 
-# Dividir en train/test (80/20)
+# Split into train/test (80/20)
 python src/ai/split_datos.py
 
-# Sanitizar archivos corruptos
+# Sanitize corrupt files
 python src/ai/../sanatizar_dataset.py
 ```
 
@@ -372,44 +372,44 @@ python src/ai/../sanatizar_dataset.py
 ## 🧪 Tests
 
 ```bash
-# Ejecutar todos los tests
+# Run all tests
 pytest tests/ -v
 
-# Tests específicos
+# Specific tests
 pytest tests/test_integration.py -v
 pytest tests/test_regression.py -v
 ```
 
 ---
 
-## 🏋️ Entrenar el Modelo
+## 🏋️ Train the Model
 
 ```bash
 python src/ai/train.py
 ```
 
-El script:
-1. Carga los datos desde `data/train/`
-2. Precomputa los waveforms crudos en RAM
-3. Divide automáticamente en train/val (85/15)
-4. Aplica aumento de datos (acústico + espectrograma)
-5. Entrena con early stopping y reducción de learning rate
-6. Evalúa en el conjunto de test
-7. Guarda el mejor modelo en `src/ai/best_model_v2_augmented.pth`
+The script:
+1. Loads data from `data/train/`
+2. Precomputes raw waveforms in RAM
+3. Automatically splits into train/val (85/15)
+4. Applies data augmentation (acoustic + spectrogram)
+5. Trains with early stopping and learning rate reduction
+6. Evaluates on the test set
+7. Saves the best model to `src/ai/best_model_v2_augmented.pth`
 
 ---
 
-## 📄 Licencia
+## 📄 License
 
-Este proyecto fue desarrollado para el **UNESCO Youth Hackathon 2026**. Todos los derechos reservados a sus autores.
+This project was developed for the **UNESCO Youth Hackathon 2026**. All rights reserved to its authors.
 
 ---
 
 <div align="center">
   <p>
-    <strong>DeepForensic</strong> — Por un ecosistema digital más seguro y verificado.
+    <strong>DeepForensic</strong> — For a safer, verified digital ecosystem.
   </p>
   <p>
-    <em>"La verdad no teme la investigación"</em>
+    <em>"Truth does not fear investigation"</em>
   </p>
 </div>
