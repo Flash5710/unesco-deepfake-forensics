@@ -15,6 +15,8 @@ from reportlab.platypus import (
     Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
+from src.utils.i18n import t as _t
+
 N_MELS = 128
 MAX_FRAMES = 300
 
@@ -24,9 +26,9 @@ def _espectrograma_torchaudio(y, sr=16000):
         sample_rate=sr, n_fft=2048, hop_length=512, n_mels=N_MELS,
     )
     db = torchaudio.transforms.AmplitudeToDB()
-    t = torch.from_numpy(y).float().unsqueeze(0)
+    ten = torch.from_numpy(y).float().unsqueeze(0)
     with torch.no_grad():
-        mel_db = db(mel(t)).squeeze(0).numpy()
+        mel_db = db(mel(ten)).squeeze(0).numpy()
     B, T = mel_db.shape
     if T < MAX_FRAMES:
         pad = MAX_FRAMES - T
@@ -41,7 +43,7 @@ def _espectrograma_torchaudio(y, sr=16000):
     return mel_db
 
 
-def _figura_espectrograma(mel_db, sr=16000):
+def _figura_espectrograma(mel_db, sr=16000, lang="es"):
     hop_length = 512
     fig, ax = plt.subplots(figsize=(8, 3.5))
     img = ax.imshow(mel_db, aspect='auto', origin='lower',
@@ -49,10 +51,10 @@ def _figura_espectrograma(mel_db, sr=16000):
                     extent=[0, mel_db.shape[1] * hop_length / sr,
                             0, mel_db.shape[0]],
                     interpolation='bilinear')
-    ax.set_xlabel('Tiempo (s)')
-    ax.set_ylabel('Bandas Mel')
-    ax.set_title('Espectrograma Mel (torchaudio)')
-    plt.colorbar(img, ax=ax, label='dB normalizado')
+    ax.set_xlabel(_t("pdf", "spectrogram_x", lang))
+    ax.set_ylabel(_t("pdf", "spectrogram_y", lang))
+    ax.set_title(_t("pdf", "spectrogram", lang))
+    plt.colorbar(img, ax=ax, label=_t("pdf", "spectrogram_cb", lang))
     fig.tight_layout()
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=150)
@@ -82,11 +84,14 @@ def generar_reporte_forense(nombre_archivo, audio_y, sr, porcentaje_ia,
                             inestabilidad_fase=0.0,
                             tiempos_ventanas=None,
                             predicciones_por_ventana=None,
-                            f1_score=97.65, recall=96.47):
+                            f1_score=97.65, recall=96.47,
+                            idioma="es"):
     if tiempos_ventanas is None:
         tiempos_ventanas = []
     if predicciones_por_ventana is None:
         predicciones_por_ventana = []
+
+    L = lambda k, **p: _t("pdf", k, idioma, **p)
 
     buf_pdf = io.BytesIO()
     doc = SimpleDocTemplate(buf_pdf, pagesize=A4,
@@ -109,30 +114,28 @@ def generar_reporte_forense(nombre_archivo, audio_y, sr, porcentaje_ia,
 
     contenido = []
 
-    contenido.append(Paragraph(
-        'Reporte de Análisis Forense de Audio', titulo))
-    contenido.append(Paragraph(
-        'UNESCO Youth Hackathon 2026', subtitulo))
+    contenido.append(Paragraph(L("title"), titulo))
+    contenido.append(Paragraph(L("subtitle"), subtitulo))
     contenido.append(Spacer(1, 6*mm))
 
-    contenido.append(Paragraph('Metadatos del Análisis', subtitulo))
+    contenido.append(Paragraph(L("metadata"), subtitulo))
     ahora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
     contenido.append(Paragraph(
-        f'<b>Archivo:</b> {nombre_archivo}', cuerpo))
+        f'<b>{L("file")}:</b> {nombre_archivo}', cuerpo))
     contenido.append(Paragraph(
-        f'<b>Fecha y Hora:</b> {ahora}', cuerpo))
+        f'<b>{L("date")}:</b> {ahora}', cuerpo))
     contenido.append(Paragraph(
-        f'<b>Tasa de Muestreo:</b> {sr} Hz', cuerpo))
+        f'<b>{L("sample_rate")}:</b> {sr} Hz', cuerpo))
     contenido.append(Spacer(1, 4*mm))
 
-    contenido.append(Paragraph('Veredicto del Modelo', subtitulo))
+    contenido.append(Paragraph(L("veredict"), subtitulo))
     es_fake = porcentaje_ia > 50
     clase = 'DEEPFAKE' if es_fake else 'REAL'
     color_veredicto = (colors.HexColor('#d32f2f') if es_fake
                        else colors.HexColor('#2e7d32'))
     tbl = Table([
-        ['Clasificación', clase],
-        ['Confianza', f'{porcentaje_ia:.1f}%'],
+        [L("classification"), clase],
+        [L("confidence"), f'{porcentaje_ia:.1f}%'],
     ], colWidths=[120, 200])
     tbl.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
@@ -147,59 +150,47 @@ def generar_reporte_forense(nombre_archivo, audio_y, sr, porcentaje_ia,
     contenido.append(tbl)
     contenido.append(Spacer(1, 5*mm))
 
-    contenido.append(Paragraph('Métricas Acústicas', subtitulo))
+    contenido.append(Paragraph(L("acoustic"), subtitulo))
     tbl_acust = _tabla_estilo([
-        ['Métrica', 'Valor'],
-        ['Inestabilidad de Fase', f'{inestabilidad_fase:.4f}'],
+        [L("phase_instability"), ''],
+        [L("phase_instability"), f'{inestabilidad_fase:.4f}'],
     ], [120, 200])
     contenido.append(tbl_acust)
     contenido.append(Spacer(1, 5*mm))
 
     if tiempos_ventanas and predicciones_por_ventana:
-        contenido.append(Paragraph(
-            'Análisis Temporal de Anomalías', subtitulo))
+        contenido.append(Paragraph(L("temporal"), subtitulo))
         pares = list(zip(tiempos_ventanas, predicciones_por_ventana))
         if es_fake:
             pares = sorted(pares, key=lambda x: x[1], reverse=True)[:5]
         else:
             pares = sorted(pares, key=lambda x: x[1])[:5]
-        filas = [['#', 'Tiempo (s)', 'Prob. Deepfake (%)']]
+
+        temp_hdr = _t("pdf", "temp_header", idioma)
+        if isinstance(temp_hdr, str):
+            temp_hdr = temp_hdr.split(",")
+        filas = [temp_hdr]
         for i, (t, p) in enumerate(pares, 1):
             filas.append([str(i), f'{t:.1f}', f'{p:.2f}'])
         tbl_temp = _tabla_estilo(filas, [30, 80, 120])
         contenido.append(tbl_temp)
         contenido.append(Spacer(1, 5*mm))
 
-    contenido.append(Paragraph('Evidencia Visual', subtitulo))
+    contenido.append(Paragraph(L("visual"), subtitulo))
     mel_db = _espectrograma_torchaudio(audio_y, sr)
-    buf_img = _figura_espectrograma(mel_db, sr)
+    buf_img = _figura_espectrograma(mel_db, sr, lang=idioma)
     img = Image(buf_img, width=460, height=200)
     contenido.append(img)
     contenido.append(Spacer(1, 5*mm))
 
-    contenido.append(Paragraph('Conclusión Pericial', subtitulo))
-    if es_fake:
-        texto_conclusion = (
-            'Las anomalías en el espectrograma y la inestabilidad de fase '
-            'apuntan a síntesis de voz o clonación por vocoder. '
-            'Se recomienda una revisión forense adicional con análisis '
-            'de marcas de agua digitales y verificación de cadena de '
-            'custodia del archivo original.'
-        )
-    else:
-        texto_conclusion = (
-            'Las características acústicas mantienen la continuidad '
-            'natural de la voz humana. No se detectaron artefactos '
-            'espectrales ni rupturas de fase significativas que sugieran '
-            'manipulación sintética del contenido auditivo.'
-        )
+    contenido.append(Paragraph(L("conclusion"), subtitulo))
+    texto_conclusion = L("conclusion_fake") if es_fake else L("conclusion_real")
     contenido.append(Paragraph(texto_conclusion, parrafo))
     contenido.append(Spacer(1, 5*mm))
 
-    contenido.append(Paragraph('Firma Técnica', subtitulo))
+    contenido.append(Paragraph(L("signature"), subtitulo))
     contenido.append(Paragraph(
-        'Métricas de fiabilidad del modelo '
-        f'(F1-Score: {f1_score:.2f}%, Recall: {recall:.2f}%)',
+        _t("pdf", "signature_text", idioma, f1=f1_score, recall=recall),
         nota))
 
     doc.build(contenido)
