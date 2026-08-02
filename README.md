@@ -220,7 +220,7 @@ Full interface for uploading files, pasting social media links, and viewing fore
 
 ```bash
 # From the project root
-uvicorn api_extension_workspace.servidor_api:app --host 0.0.0.0 --port 8000 --reload
+uvicorn api_extension_workspace.servidor_api:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 The API will be available at [http://localhost:8000](http://localhost:8000) with the following endpoints:
