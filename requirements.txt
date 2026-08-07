@@ -1,0 +1,37 @@
+# === Procesamiento de Señales y Matemáticas ===
+numpy
+scipy
+librosa
+torch
+torchaudio
+
+# === Extracción de Audio desde Video ===
+moviepy
+imageio-ffmpeg
+
+# === Descarga de videos desde redes sociales ===
+yt-dlp
+
+# === Visualización y Frontend ===
+matplotlib
+plotly
+streamlit
+
+# === Generación de Reportes PDF ===
+reportlab
+
+# === Descarga de Datasets (Kaggle) ===
+kagglehub
+
+# === Augmentación acústica (requiere ffmpeg en PATH o lameenc) ===
+audiomentations
+
+# === API REST (FastAPI) ===
+fastapi
+uvicorn
+python-multipart
+pydantic
+
+# === Testing ===
+pytest
+

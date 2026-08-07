@@ -1,0 +1,23 @@
+#  Semana 1
+
+Este directorio contiene los cimientos del sistema de detección de deepfakes de audio, desarrollado bajo el rol de **Ingeniero en IA**.
+
+
+* ** (`custom_dataset.py`):** Creación de la clase estructurada `DeepfakeAudioDataset` heredando de `torch.utils.data.Dataset` para el mapeo y la lectura de espectrogramas de Mel.
+* ** (`custom_dataset.py` - Actualización):Configuración de aumentos de datos sutiles mediante la inyección de ruido blanco aleatorio  para robustecer el entrenamiento.
+* ** (`model.py`): Diseño de la arquitectura de la Red Neuronal Convolucional  Ligera  con capas de normalización  y reducción adaptativa.
+* ** (`train.py`): Implementación del script de entrenamiento base interconectando el DataLoader, el modelo, el optimizador Adam y la función de pérdida `CrossEntropyLoss`.
+
+##  Cómo ejecutar los componentes
+
+Para verificar la sintaxis de los módulos desde la raíz del proyecto:
+
+```bash
+# Validar el Dataset y el DataLoader con ruido
+python src/ai/custom_dataset.py
+
+# Validar la arquitectura de la CNN Ligera
+python src/ai/model.py
+
+# Validar el bucle de entrenamiento base
+python src/ai/train.py

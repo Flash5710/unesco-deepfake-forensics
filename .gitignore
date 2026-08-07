@@ -1,16 +1,42 @@
-# Ignorar entornos virtuales
+# === Entornos virtuales ===
 venv/
+venv_cuda/
 env/
+.venv/
 
-# Ignorar archivos de Python compilados
+# === Python compilado y caches ===
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+*.egg-info/
+build/
+dist/
 
-# Ignorar la carpeta de datos (audios y videos de prueba)
+# === Datos (audios y videos de prueba, caches de tensores) ===
 data/
+src/physics/data/
 
-# Ignorar pesos de modelos de IA si superan los límites de GitHub (ej. 100MB)
-*.pt
+# === Pesos de modelos de IA y artefactos de datos pesados ===
 *.pth
+*.pt
 *.h5
+*.hdf5
+*.onnx
+*.safetensors
+*.npz
+*.npy
+
+# === Logs ===
+*.log
+
+# === Secretos y configuración local ===
+.env
+.env.*
+.streamlit/secrets.toml
+
+# === IDE ===
+.vscode/
+.idea/
