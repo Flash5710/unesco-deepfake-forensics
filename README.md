@@ -205,6 +205,16 @@ pip install -r requirements.txt
 > ```
 
 ---
+## 🔒 Model Weights & Data
+
+Trained weights (`*.pth`) and datasets are **not included** in this repository because the training data comes from third-party datasets with their own licenses.
+
+To reproduce the model:
+1. Prepare the datasets (see **Datasets** below).
+2. Train: `python src/ai/train.py`
+3. The best checkpoint is saved to `src/ai/best_model_v2_augmented.pth`, which the app loads automatically.
+
+Want to try DeepForensic without training? Watch the demo video above, or contact me for access to a demo build.
 
 ## 🚀 How to Run
 
