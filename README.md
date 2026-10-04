@@ -409,7 +409,13 @@ The script:
 7. Saves the best model to `src/ai/best_model_v2_augmented.pth`
 
 ---
+## ⚠️ Limitations & Status
 
+- The 97.65% F1 was measured on our test split of public datasets. Performance on compressed audio (WhatsApp, phone calls), noisy recordings, and vocoders not seen in training may be lower.
+- Trained weights and datasets are not distributed due to third-party licensing. See **Model Weights & Data** above.
+- The project was developed for the UNESCO Youth Hackathon 2026. Next steps: build a team, collect real-world samples from Ecuadorian use cases, and evaluate on them.
+
+---
 ## 📄 License
 
 This project was developed for the **UNESCO Youth Hackathon 2026**. MIT License.
