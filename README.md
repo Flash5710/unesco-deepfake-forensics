@@ -19,9 +19,9 @@
 
 ## 📋 Description
 
-**DeepForensic** is a cross-platform forensic platform designed to detect **audio deepfakes** through a hybrid approach combining **physical signal analysis**, **mathematical phase metrics**, and **deep artificial intelligence** (CNN).
+DeepForensic is a free tool to check whether an audio is real or AI-generated, built to fight voice-cloning scams in Ecuador, like extortion calls or WhatsApp voice notes pretending to be a relative.
 
-Developed for the **UNESCO Youth Hackathon 2026**, the tool enables journalists, forensic investigators, and the general public to verify the authenticity of audio content from social media, local files, or direct links.
+It combines vocoder phase analysis with a CNN and explains every verdict with Grad-CAM. Works as a web app, a REST API, and a Chrome extension. Built for the UNESCO Youth Hackathon 2026.
 
 Detection is based on a fundamental principle: **neural vocoders (WaveNet, Tacotron, etc.) leave spectral artifacts and phase discontinuities that do not occur in natural human speech**. DeepForensic exploits these forensic fingerprints to classify audio as REAL or FAKE with high accuracy.
 
@@ -182,7 +182,7 @@ The result is a **heatmap** showing the temporal and frequency regions most deci
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/unesco-deepfake-forensics.git
+git clone https://github.com/Flash5710/unesco-deepfake-forensics.git
 cd unesco-deepfake-forensics
 
 # 2. Create and activate virtual environment
@@ -401,7 +401,7 @@ The script:
 
 ## 📄 License
 
-This project was developed for the **UNESCO Youth Hackathon 2026**. All rights reserved to its authors.
+This project was developed for the **UNESCO Youth Hackathon 2026**. MIT License.
 
 ---
 
