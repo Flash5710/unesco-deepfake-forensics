@@ -25,7 +25,13 @@ It combines vocoder phase analysis with a CNN and explains every verdict with Gr
 
 Detection is based on a fundamental principle: **neural vocoders (WaveNet, Tacotron, etc.) leave spectral artifacts and phase discontinuities that do not occur in natural human speech**. DeepForensic exploits these forensic fingerprints to classify audio as REAL or FAKE with high accuracy.
 
-**DEMO VIDEO**: https://youtu.be/aONwQUdn5uo
+<div align="center">
+
+[![DeepForensic demo](https://img.youtube.com/vi/aONwQUdn5uo/maxresdefault.jpg)](https://youtu.be/aONwQUdn5uo)
+
+**▶ Watch the demo**
+
+</div>
 ---
 
 ## ✨ Key Features
